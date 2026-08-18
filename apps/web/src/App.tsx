@@ -106,10 +106,12 @@ export default function App() {
           <SignalExplanation signal={selectedSignal} />
         </div>
         <div className="right-column">
-          <div className="panel">
+          <div className="panel chart-panel">
             <h2>Chart Inspection</h2>
             <p className="muted">Candles, volume, trendline candidates, Action Line, Safety Line, and historical backtest trades.</p>
-            <SymbolChart analysis={analysis} backtestTrades={backtest?.tradeList} />
+            <div className="chart-host">
+              <SymbolChart analysis={analysis} backtestTrades={backtest?.tradeList} />
+            </div>
           </div>
           <BacktestSummary backtest={backtest} />
         </div>

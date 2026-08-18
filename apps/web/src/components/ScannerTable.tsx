@@ -21,7 +21,7 @@ function signalColor(signal: ScannerRow["signal"]) {
 
 export function ScannerTable({ rows, selectedSymbol, onSelectSymbol }: ScannerTableProps) {
   return (
-    <div className="panel">
+    <div className="panel scanner-panel">
       <h2>Market Scanner</h2>
       <p className="muted">
         Ranked symbols with transparent scoring. Click any symbol to inspect trendlines and decision logic.

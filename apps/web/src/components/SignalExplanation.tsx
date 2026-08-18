@@ -7,7 +7,7 @@ interface SignalExplanationProps {
 export function SignalExplanation({ signal }: SignalExplanationProps) {
   if (!signal) {
     return (
-      <div className="panel">
+      <div className="panel signal-panel">
         <h2>Signal Reasoning</h2>
         <p className="muted">Select a symbol to inspect strategy explanation.</p>
       </div>
@@ -15,7 +15,7 @@ export function SignalExplanation({ signal }: SignalExplanationProps) {
   }
 
   return (
-    <div className="panel">
+    <div className="panel signal-panel">
       <h2>
         {signal.symbol} — {signal.signal}
       </h2>

@@ -1,4 +1,4 @@
-import { ScannerRow, ScoreBreakdown, StrategySignal, Timeframe, Trendline } from "@trader/shared";
+import { ScannerRow, ScoreBreakdown, StrategySignal, Timeframe, TrendDirection, Trendline } from "@trader/shared";
 import { OhlcvBar } from "@trader/shared";
 import { detectSwingPoints } from "./swingPoints.js";
 import {
@@ -83,9 +83,42 @@ export function analyzeSymbol(params: {
 }): SymbolAnalysisResult {
   const { symbol, timeframe, bars, higherTimeframeDirection } = params;
   const swings = detectSwingPoints({ symbol, timeframe, bars });
-  const trendDirection = detectTrendDirection(swings);
-  const candidates = generateTrendlineCandidates({ symbol, timeframe, swings, bars, direction: trendDirection });
-  const { actionLine, safetyLine } = pickActionAndSafetyLines(candidates);
+  let trendDirection = detectTrendDirection(swings);
+  const bullishCandidates = generateTrendlineCandidates({
+    symbol,
+    timeframe,
+    swings,
+    bars,
+    direction: "BULLISH"
+  });
+  const bearishCandidates = generateTrendlineCandidates({
+    symbol,
+    timeframe,
+    swings,
+    bars,
+    direction: "BEARISH"
+  });
+
+  const bullishStrength = bullishCandidates[0]?.score ?? Number.NEGATIVE_INFINITY;
+  const bearishStrength = bearishCandidates[0]?.score ?? Number.NEGATIVE_INFINITY;
+  if (trendDirection === "SIDEWAYS") {
+    if (bullishStrength > bearishStrength + 5) {
+      trendDirection = "BULLISH";
+    } else if (bearishStrength > bullishStrength + 5) {
+      trendDirection = "BEARISH";
+    }
+  }
+
+  const activeCandidates =
+    trendDirection === "BULLISH"
+      ? bullishCandidates
+      : trendDirection === "BEARISH"
+        ? bearishCandidates
+        : bullishStrength >= bearishStrength
+          ? bullishCandidates
+          : bearishCandidates;
+  const opposingCandidates = activeCandidates === bullishCandidates ? bearishCandidates : bullishCandidates;
+  const { actionLine, safetyLine } = pickActionAndSafetyLines(activeCandidates);
   const lastBar = bars[bars.length - 1];
   const prevBar = bars[bars.length - 2] ?? lastBar;
 
@@ -96,7 +129,9 @@ export function analyzeSymbol(params: {
   const trendStrength = trendDirection === "SIDEWAYS" ? 35 : 68 + Math.min(20, swings.length);
   const trendlineQuality = actionLine ? clamp(actionLine.score, 0, 100) : 20;
   const breakoutStrength = actionLinePrice
-    ? clamp(((lastBar.close - actionLinePrice) / lastBar.close) * 2200 + 50, 0, 100)
+    ? trendDirection === "BEARISH"
+      ? clamp(((actionLinePrice - lastBar.close) / lastBar.close) * 2200 + 50, 0, 100)
+      : clamp(((lastBar.close - actionLinePrice) / lastBar.close) * 2200 + 50, 0, 100)
     : 30;
   const avgVolume = bars.slice(-20).reduce((acc, bar) => acc + bar.volume, 0) / Math.max(1, bars.slice(-20).length);
   const volumeConfirmation = clamp((lastBar.volume / Math.max(1, avgVolume)) * 50, 0, 100);
@@ -132,6 +167,7 @@ export function analyzeSymbol(params: {
     `Trend classification on ${timeframe}: ${trendDirection}.`,
     actionLine ? `Action Line score ${actionLine.score.toFixed(1)} with ${actionLine.touches} touches.` : "No robust Action Line detected.",
     safetyLine ? `Safety Line projected at ${safetyLinePrice?.toFixed(2)}.` : "Safety Line unavailable; risk estimates are conservative.",
+    `Ray engine found ${bullishCandidates.length} bullish support rays and ${bearishCandidates.length} bearish resistance rays.`,
     `Breakout strength ${breakoutStrength.toFixed(1)} and volume confirmation ${volumeConfirmation.toFixed(1)}.`,
     `Multi-timeframe alignment score ${multiTimeframeAlignment.toFixed(1)}.`
   ];
@@ -159,10 +195,29 @@ export function analyzeSymbol(params: {
     breakdown
   };
 
+  const trendlinesForInspection: Trendline[] = [];
+  const seen = new Set<string>();
+  const pushUnique = (line: Trendline | undefined) => {
+    if (!line) {
+      return;
+    }
+    const key = `${line.kind}:${line.direction}:${line.startTime}:${line.endTime}`;
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    trendlinesForInspection.push(line);
+  };
+
+  pushUnique(actionLine);
+  pushUnique(safetyLine);
+  activeCandidates.slice(0, 4).forEach(pushUnique);
+  opposingCandidates.slice(0, 4).forEach(pushUnique);
+
   return {
     signal,
     swings,
-    trendlines: [actionLine, safetyLine, ...candidates.slice(0, 4)].filter(Boolean) as Trendline[]
+    trendlines: trendlinesForInspection
   };
 }
 

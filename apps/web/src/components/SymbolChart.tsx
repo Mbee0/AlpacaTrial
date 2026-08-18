@@ -29,6 +29,34 @@ function toUtcTimestamp(timestamp: string): UTCTimestamp {
   return Math.floor(new Date(timestamp).getTime() / 1000) as UTCTimestamp;
 }
 
+function projectLineValueAt(line: SymbolAnalysisResponse["trendlines"][number], timestamp: string) {
+  const x1 = new Date(line.startTime).getTime();
+  const x = new Date(timestamp).getTime();
+  return line.startPrice + line.slope * (x - x1);
+}
+
+function trendlineColor(line: SymbolAnalysisResponse["trendlines"][number]) {
+  if (line.direction === "BULLISH") {
+    if (line.kind === "ACTION") {
+      return "#22c55e";
+    }
+    if (line.kind === "SAFETY") {
+      return "#4ade80";
+    }
+    return "#16a34a";
+  }
+  if (line.direction === "BEARISH") {
+    if (line.kind === "ACTION") {
+      return "#ef4444";
+    }
+    if (line.kind === "SAFETY") {
+      return "#f87171";
+    }
+    return "#b91c1c";
+  }
+  return "#9ca3af";
+}
+
 export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -48,7 +76,7 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
         textColor: "#d1d4dc"
       },
       width: containerRef.current.clientWidth,
-      height: 500,
+      height: Math.max(320, containerRef.current.clientHeight),
       grid: {
         vertLines: { color: "#1f2736" },
         horzLines: { color: "#1f2736" }
@@ -62,7 +90,10 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
 
     const onResize = () => {
       if (containerRef.current) {
-        chart.applyOptions({ width: containerRef.current.clientWidth });
+        chart.applyOptions({
+          width: containerRef.current.clientWidth,
+          height: Math.max(320, containerRef.current.clientHeight)
+        });
       }
     };
     window.addEventListener("resize", onResize);
@@ -124,16 +155,18 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
     cleanupSeriesRef.current.push(volume);
 
     for (const line of analysis.trendlines) {
-      const color =
-        line.kind === "ACTION" ? "#facc15" : line.kind === "SAFETY" ? "#60a5fa" : "#9ca3af";
+      const latestTimestamp = analysis.bars[analysis.bars.length - 1]?.timestamp ?? line.endTime;
+      const renderEndTime =
+        new Date(latestTimestamp).getTime() > new Date(line.endTime).getTime() ? latestTimestamp : line.endTime;
+      const renderEndValue = projectLineValueAt(line, renderEndTime);
       const series = chart.addSeries(LineSeries, {
-        color,
-        lineWidth: line.kind === "CANDIDATE" ? 1 : 2,
+        color: trendlineColor(line),
+        lineWidth: line.kind === "CANDIDATE" ? 1 : 3,
         lineStyle: line.kind === "CANDIDATE" ? LineStyle.Dashed : LineStyle.Solid
       });
       series.setData([
         { time: toUtcTimestamp(line.startTime), value: line.startPrice },
-        { time: toUtcTimestamp(line.endTime), value: line.endPrice }
+        { time: toUtcTimestamp(renderEndTime), value: renderEndValue }
       ]);
       cleanupSeriesRef.current.push(series);
     }
@@ -159,5 +192,5 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
     chart.timeScale().fitContent();
   }, [analysis, backtestTrades]);
 
-  return <div ref={containerRef} style={{ width: "100%", minHeight: 500 }} />;
+  return <div ref={containerRef} style={{ width: "100%", height: "100%", minHeight: 320 }} />;
 }

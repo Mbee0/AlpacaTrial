@@ -6,7 +6,7 @@ interface BacktestSummaryProps {
 
 export function BacktestSummary({ backtest }: BacktestSummaryProps) {
   return (
-    <div className="panel">
+    <div className="panel backtest-panel">
       <h2>Backtest Snapshot</h2>
       {!backtest ? (
         <p className="muted">Run a symbol analysis to generate a paired backtest result.</p>
