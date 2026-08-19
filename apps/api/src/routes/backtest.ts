@@ -1,5 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { env } from "../config.js";
 import { getDefaultDateRange } from "../services/alpacaDataService.js";
 import { runBacktest } from "../services/backtestService.js";
 import { getBars } from "../services/marketDataService.js";
@@ -16,20 +17,52 @@ const backtestSchema = z.object({
   feePerTrade: z.coerce.number().default(1)
 });
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
+
 export async function registerBacktestRoutes(app: FastifyInstance) {
-  app.get("/backtest/run", async (request) => {
+  app.get("/backtest/run", async (request, reply) => {
     const query = backtestSchema.parse(request.query);
     const timeframe = parseTimeframe(query.timeframe);
     const fallbackRange = getDefaultDateRange(timeframe);
     const start = query.start ? new Date(query.start) : fallbackRange.start;
     const end = query.end ? new Date(query.end) : fallbackRange.end;
-    const bars = await getBars({
-      symbol: query.symbol,
-      timeframe,
-      start,
-      end,
-      forceRefresh: false
-    });
+    let bars;
+    try {
+      bars = await withTimeout(
+        getBars({
+          symbol: query.symbol,
+          timeframe,
+          start,
+          end,
+          forceRefresh: false
+        }),
+        env.BACKTEST_BARS_TIMEOUT_MS,
+        `Timed out loading bars for backtest after ${Math.round(env.BACKTEST_BARS_TIMEOUT_MS / 1000)}s.`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      request.log.warn({ symbol: query.symbol, timeframe, error }, "backtest bars timeout/failure");
+      return reply.code(504).send({
+        symbol: query.symbol,
+        timeframe,
+        error: "Backtest data load timed out.",
+        message
+      });
+    }
 
     const result = runBacktest({
       symbol: query.symbol,
