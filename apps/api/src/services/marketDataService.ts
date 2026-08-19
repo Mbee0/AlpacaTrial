@@ -16,6 +16,14 @@ function timeframeMs(timeframe: Timeframe) {
   return 24 * 60 * 60 * 1000;
 }
 
+function dedupeSortedBars(bars: OhlcvBar[]) {
+  const byTimestamp = new Map<string, OhlcvBar>();
+  for (const bar of bars) {
+    byTimestamp.set(bar.timestamp, bar);
+  }
+  return Array.from(byTimestamp.values()).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+}
+
 async function ensureAsset(symbol: string) {
   return prisma.asset.upsert({
     where: { symbol },
@@ -96,9 +104,28 @@ export async function getBars(params: {
         })
       )
     );
-    onProgress?.("Historical bars ready.");
+    const mergedBars = dedupeSortedBars([
+      ...cachedBars.map((bar) => ({
+        symbol,
+        timestamp: bar.timestamp.toISOString(),
+        open: bar.open,
+        high: bar.high,
+        low: bar.low,
+        close: bar.close,
+        volume: bar.volume
+      })),
+      ...fetchedBars
+    ]);
+    const mergedStartMs = new Date(mergedBars[0]?.timestamp ?? 0).getTime();
+    if (Number.isFinite(mergedStartMs) && mergedStartMs > requestedStartMs + intervalMs * 2) {
+      onProgress?.(
+        `History is source-limited for this request. Earliest available bar: ${mergedBars[0]?.timestamp?.slice(0, 10) ?? "unknown"}.`
+      );
+    } else {
+      onProgress?.("Historical bars ready.");
+    }
 
-    return fetchedBars;
+    return mergedBars;
   }
 
   onProgress?.("Using local cached bars.");

@@ -63,7 +63,7 @@ function buildRangeForPreset(preset: ChartRangePreset) {
 
   if (preset === "ALL") {
     return {
-      start: new Date("1990-01-01T00:00:00.000Z").toISOString(),
+      start: new Date("1900-01-01T00:00:00.000Z").toISOString(),
       end: end.toISOString()
     };
   }
@@ -181,6 +181,37 @@ function chartIntervalLabel(base: Timeframe, aggregation: ChartAggregation): str
   return base;
 }
 
+function buildHistoryCoverageNote(
+  bars: OhlcvBar[] | undefined,
+  requestedRange: { start: string; end: string },
+  preset: ChartRangePreset
+): string | undefined {
+  if (!bars || bars.length === 0) {
+    return undefined;
+  }
+
+  const sorted = [...bars].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  const requestedStartMs = new Date(requestedRange.start).getTime();
+  const firstMs = new Date(first.timestamp).getTime();
+  const lastMs = new Date(last.timestamp).getTime();
+  if (!Number.isFinite(requestedStartMs) || !Number.isFinite(firstMs) || !Number.isFinite(lastMs)) {
+    return undefined;
+  }
+
+  const daysGap = Math.floor((firstMs - requestedStartMs) / (24 * 60 * 60 * 1000));
+  if (daysGap <= 8) {
+    return `History loaded from ${first.timestamp.slice(0, 10)} to ${last.timestamp.slice(0, 10)}.`;
+  }
+
+  if (preset === "ALL") {
+    return `Showing all available history from data source (${first.timestamp.slice(0, 10)} to ${last.timestamp.slice(0, 10)}).`;
+  }
+
+  return `Requested ${preset}, but available history starts at ${first.timestamp.slice(0, 10)} for this symbol/data feed.`;
+}
+
 function formatFixed(value: unknown, digits: number): string {
   const numberValue = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(numberValue)) {
@@ -271,6 +302,7 @@ export default function App() {
   const [portfolioLoading, setPortfolioLoading] = useState(false);
   const [chartStatusMessage, setChartStatusMessage] = useState("Preparing chart analysis...");
   const [chartStatusProgress, setChartStatusProgress] = useState(12);
+  const [chartHistoryCoverageNote, setChartHistoryCoverageNote] = useState<string>();
   const [error, setError] = useState<string>();
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [leftPanePct, setLeftPanePct] = useState(38);
@@ -420,8 +452,10 @@ export default function App() {
 
       if (cachedBars && cachedBars.length > 0) {
         setChartBars(cachedBars);
+        setChartHistoryCoverageNote(buildHistoryCoverageNote(cachedBars, range, chartRangePreset));
       } else {
         setChartBars(undefined);
+        setChartHistoryCoverageNote(undefined);
       }
       setAnalysis(cachedAnalysis);
       setBacktest(cachedBacktest);
@@ -435,6 +469,7 @@ export default function App() {
         }
         chartBarsCacheRef.current.set(chartBarsCacheKey, marketBarsResponse.bars);
         setChartBars(marketBarsResponse.bars);
+        setChartHistoryCoverageNote(buildHistoryCoverageNote(marketBarsResponse.bars, range, chartRangePreset));
         setChartStatusMessage(
           cachedAnalysis ? "Candlesticks loaded. Cached analysis ready." : "Candlesticks loaded. Run analysis when ready."
         );
@@ -447,6 +482,7 @@ export default function App() {
         if (!cachedBars) {
           setError(err instanceof Error ? err.message : "Failed to load chart history.");
         }
+        setChartHistoryCoverageNote(undefined);
         setChartStatusMessage("Candlestick fetch failed.");
         setChartStatusProgress(100);
       } finally {
@@ -781,6 +817,7 @@ export default function App() {
                     ))}
                     <span className="chart-range-interval">Bar interval: {chartInterval}</span>
                   </div>
+                  {chartHistoryCoverageNote && <div className="chart-coverage-note">{chartHistoryCoverageNote}</div>}
                   {(chartBarsLoading || detailsLoading) && (
                     <div className="chart-inline-status" aria-live="polite">
                       <div

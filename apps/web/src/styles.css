@@ -535,6 +535,12 @@ ul {
   margin-left: auto;
 }
 
+.chart-coverage-note {
+  margin-bottom: 0.4rem;
+  font-size: 0.72rem;
+  color: #aecdff;
+}
+
 .analysis-run-button {
   background: #2b4c77;
   border-color: #6f9add;
