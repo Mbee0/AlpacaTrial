@@ -21,11 +21,14 @@ export async function getBars(params: {
   start: Date;
   end: Date;
   forceRefresh?: boolean;
+  onProgress?: (message: string) => void;
 }): Promise<OhlcvBar[]> {
-  const { symbol, timeframe, start, end, forceRefresh = false } = params;
+  const { symbol, timeframe, start, end, forceRefresh = false, onProgress } = params;
+  onProgress?.("Resolving asset metadata...");
   const asset = await ensureAsset(symbol);
   const tf = timeframeToPrisma(timeframe);
 
+  onProgress?.("Checking local historical cache...");
   const cachedBars = await prisma.marketBar.findMany({
     where: {
       assetId: asset.id,
@@ -37,7 +40,9 @@ export async function getBars(params: {
 
   const needsFetch = forceRefresh || cachedBars.length < 50;
   if (needsFetch) {
+    onProgress?.("Requesting missing bars from Alpaca...");
     const fetchedBars = await fetchHistoricalBars({ symbol, timeframe, start, end });
+    onProgress?.("Persisting bars to local database...");
     await prisma.$transaction(
       fetchedBars.map((bar) =>
         prisma.marketBar.upsert({
@@ -68,9 +73,12 @@ export async function getBars(params: {
         })
       )
     );
+    onProgress?.("Historical bars ready.");
 
     return fetchedBars;
   }
+
+  onProgress?.("Using local cached bars.");
 
   return cachedBars.map((bar) => ({
     symbol,

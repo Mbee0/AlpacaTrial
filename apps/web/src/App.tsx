@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ScannerRow, Timeframe } from "@trader/shared";
 import {
+  fetchAnalysisStatus,
   fetchBacktest,
   fetchPortfolioSummary,
   fetchScanner,
-  fetchSymbolAnalysis
+  fetchSymbolAnalysisWithRequestId
 } from "./api/client";
 import { BacktestSummary } from "./components/BacktestSummary";
 import { HelpPage } from "./components/HelpPage";
@@ -22,13 +23,6 @@ const APP_STATE_KEY = "trader-ui-state-v1";
 const SPLITTER_PX = 4;
 const MIN_BOTTOM_PANE_PX = 150;
 const MAX_BOTTOM_PANE_PX = 460;
-const CHART_LOADING_MESSAGES = [
-  "Loading cached market bars...",
-  "Fetching missing history from Alpaca...",
-  "Computing swing points and trend rays...",
-  "Scoring action/safety lines...",
-  "Preparing chart overlays..."
-] as const;
 
 function TaskbarIcon({ viewMode }: { viewMode: ViewMode }) {
   if (viewMode === "dashboard") {
@@ -75,7 +69,7 @@ export default function App() {
   const [scannerLoading, setScannerLoading] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
-  const [chartLoadingStep, setChartLoadingStep] = useState(0);
+  const [chartStatusMessage, setChartStatusMessage] = useState("Preparing chart analysis...");
   const [error, setError] = useState<string>();
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [leftPanePct, setLeftPanePct] = useState(38);
@@ -199,6 +193,10 @@ export default function App() {
     const loadDetails = async () => {
       const requestId = detailRequestIdRef.current + 1;
       detailRequestIdRef.current = requestId;
+      const statusRequestId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       const bufferPct = Math.max(0.1, safetyLossBufferPct) / 100;
       const cacheKey = `${selectedSymbol}:${timeframe}:${bufferPct.toFixed(4)}`;
       const backtestKey = `${selectedSymbol}:${timeframe}`;
@@ -212,24 +210,54 @@ export default function App() {
       }
 
       setDetailsLoading(true);
+      setChartStatusMessage("Preparing chart analysis...");
+      let statusPollTimer: number | undefined;
+      const clearStatusPolling = () => {
+        if (statusPollTimer) {
+          window.clearInterval(statusPollTimer);
+          statusPollTimer = undefined;
+        }
+      };
+      const pollStatus = async () => {
+        try {
+          const status = await fetchAnalysisStatus(statusRequestId);
+          if (requestId !== detailRequestIdRef.current) {
+            return;
+          }
+          setChartStatusMessage(status.message);
+        } catch {
+          // Ignore transient status polling failures while main request is in-flight.
+        }
+      };
+      statusPollTimer = window.setInterval(pollStatus, 450);
+      void pollStatus();
+
       try {
         const [analysisResponse, backtestResponse] = await Promise.all([
-          fetchSymbolAnalysis(selectedSymbol, timeframe, bufferPct),
+          fetchSymbolAnalysisWithRequestId(selectedSymbol, timeframe, bufferPct, statusRequestId),
           fetchBacktest(selectedSymbol, timeframe)
         ]);
         if (requestId !== detailRequestIdRef.current) {
+          clearStatusPolling();
           return;
         }
+        clearStatusPolling();
         analysisCacheRef.current.set(cacheKey, analysisResponse);
         backtestCacheRef.current.set(backtestKey, backtestResponse);
         setAnalysis(analysisResponse);
         setBacktest(backtestResponse);
         setError(undefined);
+        setChartStatusMessage("Chart analysis complete.");
       } catch (err) {
         if (requestId !== detailRequestIdRef.current) {
+          clearStatusPolling();
           return;
         }
+        clearStatusPolling();
         setError(err instanceof Error ? err.message : "Failed to load details.");
+        setChartStatusMessage("Analysis request failed.");
+      } finally {
+        clearStatusPolling();
       }
       if (requestId === detailRequestIdRef.current) {
         setDetailsLoading(false);
@@ -309,21 +337,6 @@ export default function App() {
       document.body.classList.remove("is-dragging");
     };
   }, [dragMode]);
-
-  useEffect(() => {
-    if (!(detailsLoading && !analysis)) {
-      setChartLoadingStep(0);
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setChartLoadingStep((value) => (value + 1) % CHART_LOADING_MESSAGES.length);
-    }, 1300);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [detailsLoading, analysis]);
 
   return (
     <main className="app app-shell">
@@ -450,7 +463,7 @@ export default function App() {
                           <span className="wave-dot" />
                         </div>
                         <div className="status-wave-text" aria-live="polite">
-                          {CHART_LOADING_MESSAGES[chartLoadingStep]}
+                          {chartStatusMessage}
                         </div>
                       </div>
                     ) : (

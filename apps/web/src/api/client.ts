@@ -22,6 +22,28 @@ export function fetchSymbolAnalysis(symbol: string, timeframe: string, safetyLos
   );
 }
 
+export interface AnalysisStatusResponse {
+  requestId: string;
+  state: "queued" | "running" | "completed" | "failed" | "unknown";
+  message: string;
+  updatedAtMs: number;
+}
+
+export function fetchSymbolAnalysisWithRequestId(
+  symbol: string,
+  timeframe: string,
+  safetyLossBufferPct: number,
+  requestId: string
+) {
+  return request<SymbolAnalysisResponse>(
+    `/analysis/symbol/${symbol}?timeframe=${timeframe}&safetyLossBufferPct=${safetyLossBufferPct}&requestId=${encodeURIComponent(requestId)}`
+  );
+}
+
+export function fetchAnalysisStatus(requestId: string) {
+  return request<AnalysisStatusResponse>(`/analysis/status/${encodeURIComponent(requestId)}`);
+}
+
 export function fetchBacktest(symbol: string, timeframe: string) {
   return request<BacktestResponse>(
     `/backtest/run?symbol=${symbol}&timeframe=${timeframe}&startingBalance=10000&riskPct=0.01`
