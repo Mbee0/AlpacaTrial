@@ -10,12 +10,10 @@ interface ScannerTableProps {
   activeTab: ScannerTab;
   onActiveTabChange: (tab: ScannerTab) => void;
   testSymbols: string[];
-  savedSymbols: string[];
   testSymbolDraft: string;
   onTestSymbolDraftChange: (value: string) => void;
   onAddTestSymbol: () => void;
   onRemoveTestSymbol: (symbol: string) => void;
-  onRemoveSavedSymbol: (symbol: string) => void;
   timeframe: Timeframe;
   timeframeOptions: Timeframe[];
   onTimeframeChange: (timeframe: Timeframe) => void;
@@ -66,12 +64,10 @@ export function ScannerTable({
   activeTab,
   onActiveTabChange,
   testSymbols,
-  savedSymbols,
   testSymbolDraft,
   onTestSymbolDraftChange,
   onAddTestSymbol,
   onRemoveTestSymbol,
-  onRemoveSavedSymbol,
   timeframe,
   timeframeOptions,
   onTimeframeChange,
@@ -189,27 +185,6 @@ export function ScannerTable({
             </div>
           </div>
         )}
-        {activeTab === "saved" && (
-          <div className="track-editor">
-            <div className="track-chip-list">
-              {savedSymbols.length === 0 ? (
-                <span className="track-chip-empty">No saved tracks yet. Use the star in Chart Inspection.</span>
-              ) : (
-                savedSymbols.map((symbol) => (
-                  <button
-                    key={`saved-${symbol}`}
-                    type="button"
-                    className="track-chip"
-                    onClick={() => onRemoveSavedSymbol(symbol)}
-                    title={`Remove ${symbol}`}
-                  >
-                    {symbol} ×
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        )}
       </div>
       <div className="table-wrap">
         <table>
@@ -242,7 +217,9 @@ export function ScannerTable({
                 ? (
                   <tr>
                     <td colSpan={10} className="scanner-empty-cell">
-                      No rows in {tabLabel(activeTab)}.
+                      {activeTab === "saved"
+                        ? "No saved tracks yet. Use the star in Chart Inspection."
+                        : `No rows in ${tabLabel(activeTab)}.`}
                     </td>
                   </tr>
                 )

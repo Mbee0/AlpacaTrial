@@ -341,15 +341,20 @@ export default function App() {
     () => (selectedSymbol ? scannerRowMap.get(selectedSymbol) : undefined),
     [scannerRowMap, selectedSymbol]
   );
+  const savedRowsExact = useMemo(() => {
+    const marketBySymbol = new Map(marketScannerRows.map((row) => [row.symbol, row]));
+    const savedBySymbol = new Map(savedScannerRows.map((row) => [row.symbol, row]));
+    return savedSymbols.map((symbol) => marketBySymbol.get(symbol) ?? savedBySymbol.get(symbol) ?? scannerPlaceholderRow(symbol, timeframe));
+  }, [savedSymbols, marketScannerRows, savedScannerRows, timeframe]);
   const activeScannerRows = useMemo(() => {
     if (scannerActiveTab === "test") {
       return testScannerRows;
     }
     if (scannerActiveTab === "saved") {
-      return savedScannerRows;
+      return savedRowsExact;
     }
     return marketScannerRows;
-  }, [scannerActiveTab, marketScannerRows, testScannerRows, savedScannerRows]);
+  }, [scannerActiveTab, marketScannerRows, testScannerRows, savedRowsExact]);
   const activeScannerLoading =
     scannerActiveTab === "test"
       ? testScannerLoading
@@ -739,10 +744,6 @@ export default function App() {
     setTestSymbols((current) => current.filter((value) => value !== symbol));
   };
 
-  const handleRemoveSavedSymbol = (symbol: string) => {
-    setSavedSymbols((current) => current.filter((value) => value !== symbol));
-  };
-
   const handleToggleSavedTrack = () => {
     if (!selectedSymbol) {
       return;
@@ -869,12 +870,10 @@ export default function App() {
                   activeTab={scannerActiveTab}
                   onActiveTabChange={setScannerActiveTab}
                   testSymbols={testSymbols}
-                  savedSymbols={savedSymbols}
                   testSymbolDraft={testSymbolDraft}
                   onTestSymbolDraftChange={setTestSymbolDraft}
                   onAddTestSymbol={handleAddTestSymbol}
                   onRemoveTestSymbol={handleRemoveTestSymbol}
-                  onRemoveSavedSymbol={handleRemoveSavedSymbol}
                   timeframe={timeframe}
                   timeframeOptions={timeframeOptions}
                   onTimeframeChange={setTimeframe}
