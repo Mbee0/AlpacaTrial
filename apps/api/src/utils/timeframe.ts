@@ -13,11 +13,10 @@ export function timeframeToPrisma(timeframe: Timeframe): PrismaTimeframe {
 }
 
 export function parseTimeframe(value: string): Timeframe {
-  const normalized = value.trim().replace(/;+$/, "");
   const valid: Timeframe[] = ["1Day", "4Hour", "1Hour", "15Min"];
-  if (!valid.includes(normalized as Timeframe)) {
-    throw new Error(`Unsupported timeframe: ${value}. Use one of: ${valid.join(", ")}.`);
+  if (!valid.includes(value as Timeframe)) {
+    throw new Error(`Unsupported timeframe: ${value}`);
   }
 
-  return normalized as Timeframe;
+  return value as Timeframe;
 }
