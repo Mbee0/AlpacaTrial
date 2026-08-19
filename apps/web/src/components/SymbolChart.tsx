@@ -27,14 +27,23 @@ interface SymbolChartProps {
   }>;
 }
 
-function toUtcTimestamp(timestamp: string): UTCTimestamp {
-  return Math.floor(new Date(timestamp).getTime() / 1000) as UTCTimestamp;
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function toUtcTimestampOrNull(timestamp: string): UTCTimestamp | null {
+  const ms = new Date(timestamp).getTime();
+  if (!Number.isFinite(ms) || ms <= 0) {
+    return null;
+  }
+  return Math.floor(ms / 1000) as UTCTimestamp;
 }
 
 function projectLineValueAt(line: SymbolAnalysisResponse["trendlines"][number], timestamp: string) {
   const x1 = new Date(line.startTime).getTime();
   const x = new Date(timestamp).getTime();
-  return line.startPrice + line.slope * (x - x1);
+  const value = line.startPrice + line.slope * (x - x1);
+  return Number.isFinite(value) ? value : null;
 }
 
 function trendlineColor(line: SymbolAnalysisResponse["trendlines"][number]) {
@@ -137,6 +146,32 @@ export function SymbolChart({ analysis, bars, backtestTrades }: SymbolChartProps
       return;
     }
 
+    const candleData = sourceBars
+      .map((bar) => {
+        const time = toUtcTimestampOrNull(bar.timestamp);
+        if (
+          !time ||
+          !isFiniteNumber(bar.open) ||
+          !isFiniteNumber(bar.high) ||
+          !isFiniteNumber(bar.low) ||
+          !isFiniteNumber(bar.close)
+        ) {
+          return null;
+        }
+        return {
+          time,
+          open: bar.open,
+          high: bar.high,
+          low: bar.low,
+          close: bar.close
+        };
+      })
+      .filter((bar): bar is { time: UTCTimestamp; open: number; high: number; low: number; close: number } => bar !== null);
+
+    if (candleData.length === 0) {
+      return;
+    }
+
     const candles = chart.addSeries(CandlestickSeries, {
       upColor: "#1ed67c",
       downColor: "#ff5a7d",
@@ -144,15 +179,7 @@ export function SymbolChart({ analysis, bars, backtestTrades }: SymbolChartProps
       wickUpColor: "#1ed67c",
       wickDownColor: "#ff5a7d"
     });
-    candles.setData(
-      sourceBars.map((bar) => ({
-        time: toUtcTimestamp(bar.timestamp),
-        open: bar.open,
-        high: bar.high,
-        low: bar.low,
-        close: bar.close
-      }))
-    );
+    candles.setData(candleData);
     cleanupSeriesRef.current.push(candles);
 
     const volume = chart.addSeries(HistogramSeries, {
@@ -167,11 +194,19 @@ export function SymbolChart({ analysis, bars, backtestTrades }: SymbolChartProps
       }
     });
     volume.setData(
-      sourceBars.map((bar) => ({
-        time: toUtcTimestamp(bar.timestamp),
-        value: bar.volume,
-        color: bar.close >= bar.open ? "#1ed67c88" : "#ff5a7d88"
-      }))
+      sourceBars
+        .map((bar) => {
+          const time = toUtcTimestampOrNull(bar.timestamp);
+          if (!time || !isFiniteNumber(bar.volume) || !isFiniteNumber(bar.open) || !isFiniteNumber(bar.close)) {
+            return null;
+          }
+          return {
+            time,
+            value: bar.volume,
+            color: bar.close >= bar.open ? "#1ed67c88" : "#ff5a7d88"
+          };
+        })
+        .filter((bar): bar is { time: UTCTimestamp; value: number; color: string } => bar !== null)
     );
     cleanupSeriesRef.current.push(volume);
 
@@ -181,49 +216,76 @@ export function SymbolChart({ analysis, bars, backtestTrades }: SymbolChartProps
         const renderEndTime =
           new Date(latestTimestamp).getTime() > new Date(line.endTime).getTime() ? latestTimestamp : line.endTime;
         const renderEndValue = projectLineValueAt(line, renderEndTime);
+        const startTime = toUtcTimestampOrNull(line.startTime);
+        const endTime = toUtcTimestampOrNull(renderEndTime);
+        if (!startTime || !endTime || !isFiniteNumber(line.startPrice) || !isFiniteNumber(renderEndValue)) {
+          continue;
+        }
         const series = chart.addSeries(LineSeries, {
           color: trendlineColor(line),
           lineWidth: line.kind === "CANDIDATE" ? 1 : line.kind === "SAFETY_LOSS" ? 2 : 3,
           lineStyle: trendlineStyle(line)
         });
         series.setData([
-          { time: toUtcTimestamp(line.startTime), value: line.startPrice },
-          { time: toUtcTimestamp(renderEndTime), value: renderEndValue }
+          { time: startTime, value: line.startPrice },
+          { time: endTime, value: renderEndValue }
         ]);
         cleanupSeriesRef.current.push(series);
       }
     }
 
-    const tradeMarkers = (backtestTrades ?? []).flatMap((trade) => [
-      {
-        time: toUtcTimestamp(trade.entryTime),
-        position: "belowBar" as const,
-        color: "#1ed67c",
-        shape: "arrowUp" as const,
-        text: `Entry ${trade.entryPrice.toFixed(2)}`
-      },
-      {
-        time: toUtcTimestamp(trade.exitTime),
-        position: "aboveBar" as const,
-        color: "#ff5a7d",
-        shape: "arrowDown" as const,
-        text: `Exit ${trade.exitPrice.toFixed(2)}`
+    const markers: Array<{
+      time: UTCTimestamp;
+      position: "aboveBar" | "belowBar";
+      color: string;
+      shape: "arrowUp" | "arrowDown" | "circle";
+      text: string;
+    }> = [];
+    for (const trade of backtestTrades ?? []) {
+      const entryTime = toUtcTimestampOrNull(trade.entryTime);
+      const exitTime = toUtcTimestampOrNull(trade.exitTime);
+      const entryPrice = isFiniteNumber(trade.entryPrice) ? trade.entryPrice.toFixed(2) : "—";
+      const exitPrice = isFiniteNumber(trade.exitPrice) ? trade.exitPrice.toFixed(2) : "—";
+      if (entryTime) {
+        markers.push({
+          time: entryTime,
+          position: "belowBar",
+          color: "#1ed67c",
+          shape: "arrowUp",
+          text: `Entry ${entryPrice}`
+        });
       }
-    ]);
+      if (exitTime) {
+        markers.push({
+          time: exitTime,
+          position: "aboveBar",
+          color: "#ff5a7d",
+          shape: "arrowDown",
+          text: `Exit ${exitPrice}`
+        });
+      }
+    }
 
-    const lineMarkers = analysis
-      ? analysis.trendlines
-          .filter((line) => line.kind !== "CANDIDATE")
-          .map((line) => ({
-            time: toUtcTimestamp(line.startTime),
-            position: line.direction === "BEARISH" ? ("aboveBar" as const) : ("belowBar" as const),
-            color: trendlineColor(line),
-            shape: "circle" as const,
-            text: line.kind
-          }))
-      : [];
+    if (analysis) {
+      for (const line of analysis.trendlines) {
+        if (line.kind === "CANDIDATE") {
+          continue;
+        }
+        const time = toUtcTimestampOrNull(line.startTime);
+        if (!time) {
+          continue;
+        }
+        markers.push({
+          time,
+          position: line.direction === "BEARISH" ? "aboveBar" : "belowBar",
+          color: trendlineColor(line),
+          shape: "circle",
+          text: line.kind
+        });
+      }
+    }
 
-    markersPluginRef.current = createSeriesMarkers(candles, [...tradeMarkers, ...lineMarkers]);
+    markersPluginRef.current = createSeriesMarkers(candles, markers as any) as ISeriesMarkersPluginApi<Time>;
     chart.timeScale().fitContent();
   }, [analysis, bars, backtestTrades]);
 

@@ -41,6 +41,14 @@ function buildQuickRange(timeframe: Timeframe) {
   };
 }
 
+function formatFixed(value: unknown, digits: number): string {
+  const numberValue = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numberValue)) {
+    return "—";
+  }
+  return numberValue.toFixed(digits);
+}
+
 function chartProgressFromStatus(message: string): number {
   const normalized = message.trim().toLowerCase();
   if (!normalized) {
@@ -494,7 +502,7 @@ export default function App() {
           <div className="top-summary">
             <span className="summary-item">Symbol {selectedSymbol ?? "—"}</span>
             <span className="summary-item">Signal {selectedSignal?.signal ?? "—"}</span>
-            <span className="summary-item">Score {selectedSignal ? selectedSignal.score.toFixed(1) : "—"}</span>
+            <span className="summary-item">Score {formatFixed(selectedSignal?.score, 1)}</span>
             <span className="summary-item">Timeframe {timeframe}</span>
           </div>
         </header>
@@ -509,23 +517,23 @@ export default function App() {
               </article>
               <article className="overview-card">
                 <span>Action Line</span>
-                <strong>{selectedSignal?.actionLine?.toFixed(2) ?? "—"}</strong>
+                <strong>{formatFixed(selectedSignal?.actionLine, 2)}</strong>
               </article>
               <article className="overview-card">
                 <span>Safety Line</span>
-                <strong>{selectedSignal?.safetyLine?.toFixed(2) ?? "—"}</strong>
+                <strong>{formatFixed(selectedSignal?.safetyLine, 2)}</strong>
               </article>
               <article className="overview-card">
                 <span>Safety-loss</span>
-                <strong>{selectedSignal?.safetyLossLine?.toFixed(2) ?? "—"}</strong>
+                <strong>{formatFixed(selectedSignal?.safetyLossLine, 2)}</strong>
               </article>
               <article className="overview-card">
                 <span>Backtest Return</span>
-                <strong>{backtest ? `${backtest.totalReturnPct.toFixed(2)}%` : "—"}</strong>
+                <strong>{backtest ? `${formatFixed(backtest.totalReturnPct, 2)}%` : "—"}</strong>
               </article>
               <article className="overview-card">
                 <span>Confidence</span>
-                <strong>{selectedSignal ? `${selectedSignal.confidence.toFixed(1)}%` : "—"}</strong>
+                <strong>{selectedSignal ? `${formatFixed(selectedSignal.confidence, 1)}%` : "—"}</strong>
               </article>
             </section>
             <section

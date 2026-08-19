@@ -7,6 +7,14 @@ interface PortfolioPageProps {
   onSelectSymbol: (symbol: string) => void;
 }
 
+function formatNumber(value: unknown, digits: number, fallback = "0.00"): string {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  return numeric.toFixed(digits);
+}
+
 export function PortfolioPage({ data, loading, error, onSelectSymbol }: PortfolioPageProps) {
   return (
     <section className="portfolio-page">
@@ -30,7 +38,7 @@ export function PortfolioPage({ data, loading, error, onSelectSymbol }: Portfoli
             </div>
             <div className="score-card">
               <strong>Risk / Trade</strong>
-              <span>{((data?.riskControls.defaultRiskPct ?? 0) * 100).toFixed(2)}%</span>
+              <span>{formatNumber((data?.riskControls.defaultRiskPct ?? 0) * 100, 2)}%</span>
             </div>
             <div className="score-card">
               <strong>Max Positions</strong>
@@ -38,15 +46,15 @@ export function PortfolioPage({ data, loading, error, onSelectSymbol }: Portfoli
             </div>
             <div className="score-card">
               <strong>Max DD</strong>
-              <span>{((data?.riskControls.maxDrawdownPct ?? 0) * 100).toFixed(2)}%</span>
+              <span>{formatNumber((data?.riskControls.maxDrawdownPct ?? 0) * 100, 2)}%</span>
             </div>
             <div className="score-card">
               <strong>Equity</strong>
-              <span>${(data?.latestSnapshot?.equity ?? 0).toFixed(2)}</span>
+              <span>${formatNumber(data?.latestSnapshot?.equity ?? 0, 2)}</span>
             </div>
             <div className="score-card">
               <strong>Cash</strong>
-              <span>${(data?.latestSnapshot?.cash ?? 0).toFixed(2)}</span>
+              <span>${formatNumber(data?.latestSnapshot?.cash ?? 0, 2)}</span>
             </div>
           </div>
         )}
@@ -85,18 +93,18 @@ export function PortfolioPage({ data, loading, error, onSelectSymbol }: Portfoli
                   <tr key={`${position.symbol}-${position.observedAt}`} onClick={() => onSelectSymbol(position.symbol)}>
                     <td>{position.symbol}</td>
                     <td>{position.side}</td>
-                    <td>{position.qty.toFixed(2)}</td>
-                    <td>{position.avgEntryPrice.toFixed(2)}</td>
-                    <td>{position.currentPrice.toFixed(2)}</td>
-                    <td>{position.marketValue.toFixed(2)}</td>
-                    <td style={{ color: position.unrealizedPnl >= 0 ? "#1ed67c" : "#ff5a7d" }}>
-                      {position.unrealizedPnl.toFixed(2)}
+                    <td>{formatNumber(position.qty, 2)}</td>
+                    <td>{formatNumber(position.avgEntryPrice, 2)}</td>
+                    <td>{formatNumber(position.currentPrice, 2)}</td>
+                    <td>{formatNumber(position.marketValue, 2)}</td>
+                    <td style={{ color: Number(position.unrealizedPnl) >= 0 ? "#1ed67c" : "#ff5a7d" }}>
+                      {formatNumber(position.unrealizedPnl, 2)}
                     </td>
-                    <td style={{ color: position.realizedPnl >= 0 ? "#1ed67c" : "#ff5a7d" }}>
-                      {position.realizedPnl.toFixed(2)}
+                    <td style={{ color: Number(position.realizedPnl) >= 0 ? "#1ed67c" : "#ff5a7d" }}>
+                      {formatNumber(position.realizedPnl, 2)}
                     </td>
-                    <td>{position.stop?.toFixed(2) ?? "-"}</td>
-                    <td>{position.riskAmount?.toFixed(2) ?? "-"}</td>
+                    <td>{formatNumber(position.stop, 2, "-")}</td>
+                    <td>{formatNumber(position.riskAmount, 2, "-")}</td>
                   </tr>
                 ))}
               </tbody>

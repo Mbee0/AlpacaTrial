@@ -5,6 +5,14 @@ interface BacktestSummaryProps {
   loading?: boolean;
 }
 
+function formatNumber(value: unknown, digits: number, fallback = "—"): string {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  return numeric.toFixed(digits);
+}
+
 export function BacktestSummary({ backtest, loading = false }: BacktestSummaryProps) {
   return (
     <div className="panel backtest-panel">
@@ -29,31 +37,31 @@ export function BacktestSummary({ backtest, loading = false }: BacktestSummaryPr
         <div className="score-grid">
           <div className="score-card">
             <strong>Starting</strong>
-            <span>${backtest.startingBalance.toFixed(2)}</span>
+            <span>${formatNumber(backtest.startingBalance, 2)}</span>
           </div>
           <div className="score-card">
             <strong>Ending</strong>
-            <span>${backtest.endingBalance.toFixed(2)}</span>
+            <span>${formatNumber(backtest.endingBalance, 2)}</span>
           </div>
           <div className="score-card">
             <strong>Total Return</strong>
-            <span>{backtest.totalReturnPct.toFixed(2)}%</span>
+            <span>{formatNumber(backtest.totalReturnPct, 2)}%</span>
           </div>
           <div className="score-card">
             <strong>Win Rate</strong>
-            <span>{backtest.winRatePct.toFixed(2)}%</span>
+            <span>{formatNumber(backtest.winRatePct, 2)}%</span>
           </div>
           <div className="score-card">
             <strong>Profit Factor</strong>
-            <span>{Number.isFinite(backtest.profitFactor) ? backtest.profitFactor.toFixed(2) : "∞"}</span>
+            <span>{Number.isFinite(backtest.profitFactor) ? formatNumber(backtest.profitFactor, 2) : "∞"}</span>
           </div>
           <div className="score-card">
             <strong>Max DD</strong>
-            <span>{backtest.maxDrawdownPct.toFixed(2)}%</span>
+            <span>{formatNumber(backtest.maxDrawdownPct, 2)}%</span>
           </div>
           <div className="score-card">
             <strong>Trades</strong>
-            <span>{backtest.trades}</span>
+            <span>{Number.isFinite(backtest.trades) ? backtest.trades : "—"}</span>
           </div>
         </div>
       )}

@@ -5,6 +5,14 @@ interface SignalExplanationProps {
   loading?: boolean;
 }
 
+function formatNumber(value: unknown, digits: number, fallback = "—"): string {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  return numeric.toFixed(digits);
+}
+
 export function SignalExplanation({ signal, loading = false }: SignalExplanationProps) {
   if (!signal) {
     return (
@@ -26,6 +34,9 @@ export function SignalExplanation({ signal, loading = false }: SignalExplanation
     );
   }
 
+  const explanationLines = Array.isArray(signal.explanation) ? signal.explanation : [];
+  const breakdownEntries = Object.entries(signal.breakdown ?? {});
+
   return (
     <div className="panel signal-panel">
       <h2 className="title-with-hint">
@@ -33,17 +44,17 @@ export function SignalExplanation({ signal, loading = false }: SignalExplanation
         <span className="title-hint">Every signal is transparent, with line context and scoring details.</span>
       </h2>
       <ul>
-        {signal.explanation.map((line, index) => (
+        {explanationLines.map((line, index) => (
           <li key={`${line}-${index}`}>{line}</li>
         ))}
-        {signal.safetyLossLine && <li>Safety-loss line: {signal.safetyLossLine.toFixed(2)}.</li>}
+        {Number.isFinite(signal.safetyLossLine) && <li>Safety-loss line: {formatNumber(signal.safetyLossLine, 2)}.</li>}
       </ul>
 
       <div className="score-grid">
-        {Object.entries(signal.breakdown).map(([key, value]) => (
+        {breakdownEntries.map(([key, value]) => (
           <div key={key} className="score-card">
             <strong>{key}</strong>
-            <span>{value.toFixed(1)}</span>
+            <span>{formatNumber(value, 1)}</span>
           </div>
         ))}
       </div>
