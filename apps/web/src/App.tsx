@@ -56,10 +56,6 @@ function baselineScannerRow(symbol: string, timeframe: Timeframe): ScannerRow {
   };
 }
 
-function formatFixed(value: unknown, digits: number, fallback = "—") {
-  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits) : fallback;
-}
-
 function TaskbarIcon({ viewMode }: { viewMode: ViewMode }) {
   if (viewMode === "dashboard") {
     return (
@@ -639,7 +635,7 @@ export default function App() {
           <div className="top-summary">
             <span className="summary-item">Symbol {selectedSymbol ?? "—"}</span>
             <span className="summary-item">Signal {selectedSignal?.signal ?? "—"}</span>
-            <span className="summary-item">Score {formatFixed(selectedSignal?.score, 1)}</span>
+            <span className="summary-item">Score {selectedSignal ? selectedSignal.score.toFixed(1) : "—"}</span>
             <span className="summary-item">Timeframe {timeframe}</span>
           </div>
         </header>
@@ -654,23 +650,23 @@ export default function App() {
               </article>
               <article className="overview-card">
                 <span>Action Line</span>
-                <strong>{formatFixed(selectedSignal?.actionLine, 2)}</strong>
+                <strong>{selectedSignal?.actionLine?.toFixed(2) ?? "—"}</strong>
               </article>
               <article className="overview-card">
                 <span>Safety Line</span>
-                <strong>{formatFixed(selectedSignal?.safetyLine, 2)}</strong>
+                <strong>{selectedSignal?.safetyLine?.toFixed(2) ?? "—"}</strong>
               </article>
               <article className="overview-card">
                 <span>Safety-loss</span>
-                <strong>{formatFixed(selectedSignal?.safetyLossLine, 2)}</strong>
+                <strong>{selectedSignal?.safetyLossLine?.toFixed(2) ?? "—"}</strong>
               </article>
               <article className="overview-card">
                 <span>Backtest Return</span>
-                <strong>{backtest ? `${formatFixed(backtest.totalReturnPct, 2, "0.00")}%` : "—"}</strong>
+                <strong>{backtest ? `${backtest.totalReturnPct.toFixed(2)}%` : "—"}</strong>
               </article>
               <article className="overview-card">
                 <span>Confidence</span>
-                <strong>{selectedSignal ? `${formatFixed(selectedSignal.confidence, 1, "0.0")}%` : "—"}</strong>
+                <strong>{selectedSignal ? `${selectedSignal.confidence.toFixed(1)}%` : "—"}</strong>
               </article>
             </section>
             <section
