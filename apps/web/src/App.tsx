@@ -99,7 +99,7 @@ function buildQuickRange(timeframe: Timeframe): AnalysisRange {
   const end = new Date();
   const start = new Date(end);
   const lookbackDays =
-    timeframe === "1Day" ? 220 : timeframe === "4Hour" ? 100 : timeframe === "1Hour" ? 45 : 14;
+    timeframe === "1Day" ? 45 : timeframe === "4Hour" ? 14 : timeframe === "1Hour" ? 7 : 2;
   start.setDate(end.getDate() - lookbackDays);
   return { start: start.toISOString(), end: end.toISOString() };
 }
