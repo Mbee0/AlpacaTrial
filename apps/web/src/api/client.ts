@@ -32,10 +32,8 @@ async function request<T>(path: string, timeoutMs = 30000): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function fetchScanner(timeframe: string, limit = 12, concurrency = 4) {
-  return request<ScannerResponse>(
-    `/analysis/scanner?timeframe=${timeframe}&limit=${limit}&concurrency=${concurrency}`
-  );
+export function fetchScanner(timeframe: string) {
+  return request<ScannerResponse>(`/analysis/scanner?timeframe=${timeframe}`);
 }
 
 export function fetchSymbolAnalysis(symbol: string, timeframe: string, safetyLossBufferPct: number) {
