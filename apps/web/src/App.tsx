@@ -75,6 +75,7 @@ export default function App() {
   const [portfolioError, setPortfolioError] = useState<string>();
   const [scannerLoading, setScannerLoading] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [backtestLoading, setBacktestLoading] = useState(false);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
   const [chartStatusMessage, setChartStatusMessage] = useState("Preparing chart analysis...");
   const [showDetailRetryPrompt, setShowDetailRetryPrompt] = useState(false);
@@ -220,6 +221,7 @@ export default function App() {
       }
 
       setDetailsLoading(true);
+      setBacktestLoading(true);
       setChartStatusMessage("Preparing chart analysis...");
       setShowDetailRetryPrompt(false);
       setDetailFetchElapsedSec(0);
@@ -250,7 +252,9 @@ export default function App() {
           if (requestId !== detailRequestIdRef.current) {
             return;
           }
-          setChartStatusMessage(status.message);
+          if (status.state !== "unknown") {
+            setChartStatusMessage(status.message);
+          }
         } catch {
           // Ignore transient status polling failures while main request is in-flight.
         }
@@ -270,20 +274,40 @@ export default function App() {
         setShowDetailRetryPrompt(true);
       }, DETAIL_RETRY_THRESHOLD_MS);
 
+      void fetchBacktest(selectedSymbol, timeframe)
+        .then((backtestResponse) => {
+          if (requestId !== detailRequestIdRef.current) {
+            return;
+          }
+          backtestCacheRef.current.set(backtestKey, backtestResponse);
+          setBacktest(backtestResponse);
+        })
+        .catch((err) => {
+          if (requestId !== detailRequestIdRef.current) {
+            return;
+          }
+          setError(err instanceof Error ? err.message : "Backtest request failed.");
+        })
+        .finally(() => {
+          if (requestId === detailRequestIdRef.current) {
+            setBacktestLoading(false);
+          }
+        });
+
       try {
-        const [analysisResponse, backtestResponse] = await Promise.all([
-          fetchSymbolAnalysisWithRequestId(selectedSymbol, timeframe, bufferPct, statusRequestId),
-          fetchBacktest(selectedSymbol, timeframe)
-        ]);
+        const analysisResponse = await fetchSymbolAnalysisWithRequestId(
+          selectedSymbol,
+          timeframe,
+          bufferPct,
+          statusRequestId
+        );
         if (requestId !== detailRequestIdRef.current) {
           clearRequestTimers();
           return;
         }
         clearRequestTimers();
         analysisCacheRef.current.set(cacheKey, analysisResponse);
-        backtestCacheRef.current.set(backtestKey, backtestResponse);
         setAnalysis(analysisResponse);
-        setBacktest(backtestResponse);
         setError(undefined);
         setChartStatusMessage("Chart analysis complete.");
         setShowDetailRetryPrompt(false);
@@ -576,7 +600,7 @@ export default function App() {
                     title="Drag corner to resize both panes"
                   />
                 </div>
-                <BacktestSummary backtest={backtest} loading={detailsLoading && !backtest} />
+                <BacktestSummary backtest={backtest} loading={backtestLoading && !backtest} />
               </div>
             </section>
           </>
