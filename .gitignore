@@ -1,0 +1,13 @@
+node_modules
+dist
+coverage
+*.tsbuildinfo
+.env
+.env.local
+*.log
+pnpm-lock.yaml
+postgres-data
+apps/web/.vite
+apps/web/dist
+apps/api/dist
+prisma/dev.db

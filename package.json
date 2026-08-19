@@ -1,0 +1,23 @@
+{
+  "name": "alpaca-trial",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @trader/api & npm run dev --workspace @trader/web",
+    "dev:api": "npm run dev --workspace @trader/api",
+    "dev:web": "npm run dev --workspace @trader/web",
+    "build": "npm run build --workspace @trader/shared && npm run build --workspace @trader/api && npm run build --workspace @trader/web",
+    "lint": "npm run lint --workspace @trader/api && npm run lint --workspace @trader/web",
+    "test": "npm run test --workspace @trader/api",
+    "db:generate": "npm run db:generate --workspace @trader/api",
+    "db:migrate": "npm run db:migrate --workspace @trader/api",
+    "db:seed": "npm run db:seed --workspace @trader/api"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

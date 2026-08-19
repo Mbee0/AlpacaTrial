@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trendline Research Platform</title>
+    <style>
+      #app-boot {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        gap: 0.8rem;
+        background: radial-gradient(circle at 50% 24%, #273650 0%, #1a2638 56%, #121b2a 100%);
+        color: #d7e6ff;
+        font-family: Inter, "DM Sans", "Segoe UI", "Trebuchet MS", Roboto, system-ui, -apple-system, sans-serif;
+        transition: opacity 380ms ease, visibility 380ms ease;
+      }
+
+      #app-boot.is-hidden {
+        opacity: 0;
+        visibility: hidden;
+      }
+
+      .app-boot-title {
+        font-size: 0.98rem;
+        letter-spacing: 0.03em;
+        text-align: center;
+      }
+
+      .app-boot-wave {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.38rem;
+      }
+
+      .app-boot-wave span {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: #9dc3ff;
+        animation: appBootWave 0.92s ease-in-out infinite;
+      }
+
+      .app-boot-wave span:nth-child(2) {
+        animation-delay: 0.1s;
+      }
+
+      .app-boot-wave span:nth-child(3) {
+        animation-delay: 0.2s;
+      }
+
+      @keyframes appBootWave {
+        0%,
+        80%,
+        100% {
+          transform: translateY(0);
+          opacity: 0.5;
+        }
+        40% {
+          transform: translateY(-6px);
+          opacity: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app-boot" aria-hidden="true">
+      <div class="app-boot-wave">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <div class="app-boot-title">Loading Trendline Research Platform...</div>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

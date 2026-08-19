@@ -1,0 +1,234 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Timeframe {
+  ONE_DAY
+  FOUR_HOUR
+  ONE_HOUR
+  FIFTEEN_MIN
+}
+
+enum SwingKind {
+  HIGH
+  LOW
+}
+
+enum TrendDirection {
+  BULLISH
+  BEARISH
+  SIDEWAYS
+}
+
+enum SignalType {
+  LONG
+  SHORT
+  WATCH
+  HOLD
+}
+
+enum ExecutionMode {
+  BACKTEST
+  ANALYSIS
+  PAPER
+  LIVE
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum PositionSide {
+  LONG
+  SHORT
+}
+
+enum OrderStatus {
+  NEW
+  PARTIALLY_FILLED
+  FILLED
+  CANCELED
+  REJECTED
+}
+
+model Asset {
+  id          String              @id @default(cuid())
+  symbol      String              @unique
+  name        String?
+  exchange    String?
+  isShortable Boolean             @default(false)
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  bars        MarketBar[]
+  swings      SwingPoint[]
+  trendlines  Trendline[]
+  signals     StrategySignal[]
+  orders      BrokerOrder[]
+  positions   PositionSnapshot[]
+  trades      TradeFill[]
+
+  @@index([isActive])
+}
+
+model MarketBar {
+  id          String    @id @default(cuid())
+  assetId     String
+  timeframe   Timeframe
+  timestamp   DateTime
+  open        Float
+  high        Float
+  low         Float
+  close       Float
+  volume      Float
+  source      String    @default("alpaca")
+  insertedAt  DateTime  @default(now())
+  asOfTime    DateTime?
+  asset       Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, timeframe, timestamp])
+  @@index([timeframe, timestamp])
+}
+
+model SwingPoint {
+  id         String    @id @default(cuid())
+  assetId    String
+  timeframe  Timeframe
+  timestamp  DateTime
+  kind       SwingKind
+  price      Float
+  strength   Float
+  createdAt  DateTime  @default(now())
+  asset      Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId, timeframe, timestamp])
+}
+
+model Trendline {
+  id            String         @id @default(cuid())
+  assetId       String
+  timeframe     Timeframe
+  direction     TrendDirection
+  kind          String
+  startTime     DateTime
+  endTime       DateTime
+  startPrice    Float
+  endPrice      Float
+  slope         Float
+  score         Float
+  touches       Int
+  violations    Int
+  fitError      Float
+  recencyScore  Float
+  points        Json
+  createdAt     DateTime       @default(now())
+  asset         Asset           @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId, timeframe, direction, score])
+}
+
+model StrategySignal {
+  id             String         @id @default(cuid())
+  assetId         String
+  timeframe       Timeframe
+  executionMode   ExecutionMode
+  signal          SignalType
+  trendDirection  TrendDirection
+  score           Float
+  confidence      Float
+  actionLine      Float?
+  safetyLine      Float?
+  explanation     Json
+  breakdown       Json
+  modelVersion    String        @default("v0")
+  observedAt      DateTime
+  createdAt       DateTime      @default(now())
+  asset           Asset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId, observedAt])
+  @@index([timeframe, score])
+}
+
+model BrokerOrder {
+  id               String        @id @default(cuid())
+  assetId           String
+  brokerOrderId     String?      @unique
+  clientOrderId     String       @unique
+  executionMode     ExecutionMode
+  side              OrderSide
+  qty               Float
+  limitPrice        Float?
+  stopPrice         Float?
+  status            OrderStatus
+  submittedAt       DateTime
+  filledAvgPrice    Float?
+  filledQty         Float?
+  updatedAt         DateTime     @updatedAt
+  metadata          Json?
+  asset             Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([executionMode, status, submittedAt])
+}
+
+model TradeFill {
+  id             String        @id @default(cuid())
+  assetId        String
+  orderId        String?
+  executionMode  ExecutionMode
+  side           OrderSide
+  qty            Float
+  price          Float
+  fee            Float         @default(0)
+  slippage       Float         @default(0)
+  executedAt     DateTime
+  metadata       Json?
+  asset          Asset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId, executedAt])
+}
+
+model PositionSnapshot {
+  id               String       @id @default(cuid())
+  assetId          String
+  side             PositionSide
+  qty              Float
+  avgEntryPrice    Float
+  markPrice        Float
+  marketValue      Float
+  unrealizedPnl    Float
+  realizedPnl      Float
+  stopPrice        Float?
+  riskAmount       Float?
+  observedAt       DateTime
+  createdAt        DateTime     @default(now())
+  asset            Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([observedAt])
+  @@index([assetId, observedAt])
+}
+
+model PortfolioSnapshot {
+  id                 String      @id @default(cuid())
+  executionMode      ExecutionMode
+  equity             Float
+  cash               Float
+  investedCapital    Float
+  unrealizedPnl      Float
+  realizedPnl        Float
+  dailyPnl           Float
+  totalReturnPct     Float
+  grossExposure      Float
+  drawdownPct        Float
+  openPositions      Int
+  observedAt         DateTime
+  riskPerTradePct    Float
+  createdAt          DateTime    @default(now())
+
+  @@index([executionMode, observedAt])
+}
