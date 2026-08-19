@@ -8,12 +8,22 @@ import { parseTimeframe } from "../utils/timeframe.js";
 export async function registerAnalysisRoutes(app: FastifyInstance) {
   app.get("/analysis/symbol/:symbol", async (request) => {
     const params = z.object({ symbol: z.string().min(1) }).parse(request.params);
-    const query = z.object({ timeframe: z.string().default("1Hour") }).parse(request.query);
+    const query = z
+      .object({
+        timeframe: z.string().default("1Hour"),
+        safetyLossBufferPct: z.coerce.number().default(0.01)
+      })
+      .parse(request.query);
     const timeframe = parseTimeframe(query.timeframe);
     const symbol = params.symbol.toUpperCase();
     const { start, end } = getDefaultDateRange(timeframe);
     const bars = await getBars({ symbol, timeframe, start, end });
-    const analysis = analyzeSymbol({ symbol, timeframe, bars });
+    const analysis = analyzeSymbol({
+      symbol,
+      timeframe,
+      bars,
+      safetyLossBufferPct: query.safetyLossBufferPct
+    });
     const lastPrice = bars[bars.length - 1]?.close ?? 0;
 
     return {
@@ -51,7 +61,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance) {
           continue;
         }
 
-        const analysis = analyzeSymbol({ symbol, timeframe, bars });
+        const analysis = analyzeSymbol({ symbol, timeframe, bars, safetyLossBufferPct: 0.01 });
         rows.push(scannerRowFromSignal({ signal: analysis.signal, lastPrice: bars[bars.length - 1].close }));
       } catch (error) {
         request.log.warn({ symbol, error }, "scanner symbol failed");

@@ -24,6 +24,7 @@ export function SignalExplanation({ signal }: SignalExplanationProps) {
         {signal.explanation.map((line, index) => (
           <li key={`${line}-${index}`}>{line}</li>
         ))}
+        {signal.safetyLossLine && <li>Safety-loss line: {signal.safetyLossLine.toFixed(2)}.</li>}
       </ul>
 
       <div className="score-grid">

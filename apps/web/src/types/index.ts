@@ -39,3 +39,41 @@ export interface BacktestResponse {
     reason: string;
   }>;
 }
+
+export interface PortfolioSummaryResponse {
+  liveTradingEnabled: boolean;
+  riskControls: {
+    defaultRiskPct: number;
+    maxPositionSize: number;
+    maxOrderSize: number;
+    maxPositions: number;
+    maxDailyLossPct: number;
+    maxDrawdownPct: number;
+  };
+  latestSnapshot?: {
+    equity: number;
+    cash: number;
+    investedCapital: number;
+    unrealizedPnl: number;
+    realizedPnl: number;
+    dailyPnl: number;
+    totalReturnPct: number;
+    grossExposure: number;
+    drawdownPct: number;
+    openPositions: number;
+    observedAt: string;
+  } | null;
+  positions: Array<{
+    symbol: string;
+    side: "LONG" | "SHORT";
+    qty: number;
+    avgEntryPrice: number;
+    currentPrice: number;
+    marketValue: number;
+    unrealizedPnl: number;
+    realizedPnl: number;
+    stop?: number | null;
+    riskAmount?: number | null;
+    observedAt: string;
+  }>;
+}

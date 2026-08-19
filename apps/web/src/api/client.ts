@@ -1,4 +1,4 @@
-import { BacktestResponse, ScannerResponse, SymbolAnalysisResponse } from "../types";
+import { BacktestResponse, PortfolioSummaryResponse, ScannerResponse, SymbolAnalysisResponse } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api";
 
@@ -16,12 +16,18 @@ export function fetchScanner(timeframe: string) {
   return request<ScannerResponse>(`/analysis/scanner?timeframe=${timeframe}`);
 }
 
-export function fetchSymbolAnalysis(symbol: string, timeframe: string) {
-  return request<SymbolAnalysisResponse>(`/analysis/symbol/${symbol}?timeframe=${timeframe}`);
+export function fetchSymbolAnalysis(symbol: string, timeframe: string, safetyLossBufferPct: number) {
+  return request<SymbolAnalysisResponse>(
+    `/analysis/symbol/${symbol}?timeframe=${timeframe}&safetyLossBufferPct=${safetyLossBufferPct}`
+  );
 }
 
 export function fetchBacktest(symbol: string, timeframe: string) {
   return request<BacktestResponse>(
     `/backtest/run?symbol=${symbol}&timeframe=${timeframe}&startingBalance=10000&riskPct=0.01`
   );
+}
+
+export function fetchPortfolioSummary() {
+  return request<PortfolioSummaryResponse>("/portfolio/summary");
 }

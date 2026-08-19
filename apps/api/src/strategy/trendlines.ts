@@ -156,6 +156,41 @@ function dedupeAndSort(candidates: CandidateLine[]) {
   return [...byKey.values()].sort((a, b) => b.score - a.score);
 }
 
+function buildInitialAnchor(params: {
+  direction: Exclude<TrendDirection, "SIDEWAYS">;
+  bars: OhlcvBar[];
+  symbol: string;
+  timeframe: Timeframe;
+}): SwingPoint | null {
+  const { direction, bars, symbol, timeframe } = params;
+  if (bars.length === 0) {
+    return null;
+  }
+
+  if (direction === "BULLISH") {
+    const first = bars[0];
+    return {
+      symbol,
+      timeframe,
+      timestamp: first.timestamp,
+      price: first.low,
+      kind: "LOW",
+      strength: 0
+    };
+  }
+
+  // Bearish chain starts from the top-most point in the series.
+  const highestBar = bars.reduce((best, bar) => (bar.high > best.high ? bar : best), bars[0]);
+  return {
+    symbol,
+    timeframe,
+    timestamp: highestBar.timestamp,
+    price: highestBar.high,
+    kind: "HIGH",
+    strength: 0
+  };
+}
+
 function generateProgressiveRayCandidates(params: {
   symbol: string;
   timeframe: Timeframe;
@@ -165,9 +200,13 @@ function generateProgressiveRayCandidates(params: {
 }) {
   const { symbol, timeframe, swings, bars, direction } = params;
   const anchorKind = direction === "BULLISH" ? "LOW" : "HIGH";
-  const anchors = swings
+  const initialAnchor = buildInitialAnchor({ direction, bars, symbol, timeframe });
+  const rawAnchors = swings
     .filter((swing) => swing.kind === anchorKind)
     .sort((a, b) => toEpochMs(a.timestamp) - toEpochMs(b.timestamp));
+  const anchors = initialAnchor
+    ? [initialAnchor, ...rawAnchors.filter((swing) => toEpochMs(swing.timestamp) > toEpochMs(initialAnchor.timestamp))]
+    : rawAnchors;
   if (anchors.length < 2) {
     return [];
   }

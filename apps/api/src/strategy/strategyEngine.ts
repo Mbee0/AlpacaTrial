@@ -80,8 +80,9 @@ export function analyzeSymbol(params: {
   timeframe: Timeframe;
   bars: OhlcvBar[];
   higherTimeframeDirection?: "BULLISH" | "BEARISH" | "SIDEWAYS";
+  safetyLossBufferPct?: number;
 }): SymbolAnalysisResult {
-  const { symbol, timeframe, bars, higherTimeframeDirection } = params;
+  const { symbol, timeframe, bars, higherTimeframeDirection, safetyLossBufferPct = 0.01 } = params;
   const swings = detectSwingPoints({ symbol, timeframe, bars });
   let trendDirection = detectTrendDirection(swings);
   const bullishCandidates = generateTrendlineCandidates({
@@ -125,6 +126,11 @@ export function analyzeSymbol(params: {
   const actionLinePrice = actionLine ? linePriceAt(actionLine, lastBar.timestamp) : undefined;
   const actionPrevPrice = actionLine ? linePriceAt(actionLine, prevBar.timestamp) : undefined;
   const safetyLinePrice = safetyLine ? linePriceAt(safetyLine, lastBar.timestamp) : undefined;
+  const clampedSafetyLossBuffer = clamp(safetyLossBufferPct, 0.001, 0.2);
+  const safetyLossLinePrice =
+    trendDirection === "BEARISH"
+      ? lastBar.close * (1 + clampedSafetyLossBuffer)
+      : lastBar.close * (1 - clampedSafetyLossBuffer);
 
   const trendStrength = trendDirection === "SIDEWAYS" ? 35 : 68 + Math.min(20, swings.length);
   const trendlineQuality = actionLine ? clamp(actionLine.score, 0, 100) : 20;
@@ -167,6 +173,7 @@ export function analyzeSymbol(params: {
     `Trend classification on ${timeframe}: ${trendDirection}.`,
     actionLine ? `Action Line score ${actionLine.score.toFixed(1)} with ${actionLine.touches} touches.` : "No robust Action Line detected.",
     safetyLine ? `Safety Line projected at ${safetyLinePrice?.toFixed(2)}.` : "Safety Line unavailable; risk estimates are conservative.",
+    `Safety-loss line uses ${(clampedSafetyLossBuffer * 100).toFixed(2)}% buffer at ${safetyLossLinePrice.toFixed(2)}.`,
     `Ray engine found ${bullishCandidates.length} bullish support rays and ${bearishCandidates.length} bearish resistance rays.`,
     `Breakout strength ${breakoutStrength.toFixed(1)} and volume confirmation ${volumeConfirmation.toFixed(1)}.`,
     `Multi-timeframe alignment score ${multiTimeframeAlignment.toFixed(1)}.`
@@ -191,6 +198,7 @@ export function analyzeSymbol(params: {
     confidence,
     actionLine: actionLinePrice,
     safetyLine: safetyLinePrice,
+    safetyLossLine: safetyLossLinePrice,
     explanation,
     breakdown
   };
@@ -211,6 +219,20 @@ export function analyzeSymbol(params: {
 
   pushUnique(actionLine);
   pushUnique(safetyLine);
+  pushUnique({
+    symbol,
+    timeframe,
+    direction: trendDirection,
+    kind: "SAFETY_LOSS",
+    startTime: bars[Math.max(0, bars.length - 40)].timestamp,
+    endTime: lastBar.timestamp,
+    startPrice: safetyLossLinePrice,
+    endPrice: safetyLossLinePrice,
+    slope: 0,
+    score: 100,
+    touches: 0,
+    violations: 0
+  });
   activeCandidates.slice(0, 4).forEach(pushUnique);
   opposingCandidates.slice(0, 4).forEach(pushUnique);
 

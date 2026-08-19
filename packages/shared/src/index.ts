@@ -2,6 +2,7 @@ export type Timeframe = "1Day" | "4Hour" | "1Hour" | "15Min";
 
 export type TrendDirection = "BULLISH" | "BEARISH" | "SIDEWAYS";
 export type SignalType = "LONG" | "SHORT" | "WATCH" | "HOLD";
+export type TrendlineKind = "ACTION" | "SAFETY" | "SAFETY_LOSS" | "CANDIDATE";
 
 export interface OhlcvBar {
   symbol: string;
@@ -28,7 +29,7 @@ export interface Trendline {
   symbol: string;
   timeframe: Timeframe;
   direction: TrendDirection;
-  kind: "ACTION" | "SAFETY" | "CANDIDATE";
+  kind: TrendlineKind;
   startTime: string;
   endTime: string;
   startPrice: number;
@@ -58,6 +59,7 @@ export interface StrategySignal {
   confidence: number;
   actionLine?: number;
   safetyLine?: number;
+  safetyLossLine?: number;
   explanation: string[];
   breakdown: ScoreBreakdown;
 }

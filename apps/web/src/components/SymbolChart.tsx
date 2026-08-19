@@ -36,6 +36,10 @@ function projectLineValueAt(line: SymbolAnalysisResponse["trendlines"][number], 
 }
 
 function trendlineColor(line: SymbolAnalysisResponse["trendlines"][number]) {
+  if (line.kind === "SAFETY_LOSS") {
+    return "#f59e0b";
+  }
+
   if (line.direction === "BULLISH") {
     if (line.kind === "ACTION") {
       return "#22c55e";
@@ -171,7 +175,7 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
       cleanupSeriesRef.current.push(series);
     }
 
-    const markers = (backtestTrades ?? []).flatMap((trade) => [
+    const tradeMarkers = (backtestTrades ?? []).flatMap((trade) => [
       {
         time: toUtcTimestamp(trade.entryTime),
         position: "belowBar" as const,
@@ -188,7 +192,17 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
       }
     ]);
 
-    markersPluginRef.current = createSeriesMarkers(candles, markers);
+    const lineMarkers = analysis.trendlines
+      .filter((line) => line.kind !== "CANDIDATE")
+      .map((line) => ({
+        time: toUtcTimestamp(line.startTime),
+        position: line.direction === "BEARISH" ? ("aboveBar" as const) : ("belowBar" as const),
+        color: trendlineColor(line),
+        shape: "circle" as const,
+        text: line.kind
+      }));
+
+    markersPluginRef.current = createSeriesMarkers(candles, [...tradeMarkers, ...lineMarkers]);
     chart.timeScale().fitContent();
   }, [analysis, backtestTrades]);
 
