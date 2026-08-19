@@ -58,7 +58,19 @@ async function request<T>(path: string, timeoutMs = 30000): Promise<T> {
         throw new Error(`API request failed: ${response.status} ${body}`);
       }
 
-      return response.json() as Promise<T>;
+      const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+      const bodyText = await response.text();
+      if (!contentType.includes("application/json")) {
+        attemptErrors.push(`${target} -> expected JSON but received content-type "${contentType || "unknown"}"`);
+        continue;
+      }
+
+      try {
+        return JSON.parse(bodyText) as T;
+      } catch {
+        attemptErrors.push(`${target} -> invalid JSON body`);
+        continue;
+      }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         attemptErrors.push(`${target} -> timed out after ${Math.round(timeoutMs / 1000)}s`);
