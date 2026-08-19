@@ -1,6 +1,5 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { env } from "../config.js";
 import { analyzeSymbol, scannerRowFromSignal } from "../strategy/strategyEngine.js";
 import { getDefaultDateRange } from "../services/alpacaDataService.js";
 import {
@@ -15,22 +14,6 @@ import { parseTimeframe } from "../utils/timeframe.js";
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<T>((_, reject) => {
-        timer = setTimeout(() => reject(new Error(message)), timeoutMs);
-      })
-    ]);
-  } finally {
-    if (timer) {
-      clearTimeout(timer);
-    }
-  }
 }
 
 export async function registerAnalysisRoutes(app: FastifyInstance) {
@@ -67,17 +50,13 @@ export async function registerAnalysisRoutes(app: FastifyInstance) {
     }
 
     try {
-      const bars = await withTimeout(
-        getBars({
-          symbol,
-          timeframe,
-          start,
-          end,
-          onProgress: requestId ? (message) => updateAnalysisStatus(requestId, message) : undefined
-        }),
-        env.ANALYSIS_BARS_TIMEOUT_MS,
-        `Timed out loading ${symbol} bars after ${Math.round(env.ANALYSIS_BARS_TIMEOUT_MS / 1000)}s.`
-      );
+      const bars = await getBars({
+        symbol,
+        timeframe,
+        start,
+        end,
+        onProgress: requestId ? (message) => updateAnalysisStatus(requestId, message) : undefined
+      });
       requestId && updateAnalysisStatus(requestId, "Detecting swing points...");
       const analysis = analyzeSymbol({
         symbol,
@@ -164,11 +143,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance) {
 
         const symbol = symbolsToScan[nextIndex];
         try {
-          const bars = await withTimeout(
-            getBars({ symbol, timeframe, start, end }),
-            env.SCANNER_SYMBOL_TIMEOUT_MS,
-            `Timed out loading ${symbol} scanner bars after ${Math.round(env.SCANNER_SYMBOL_TIMEOUT_MS / 1000)}s.`
-          );
+          const bars = await getBars({ symbol, timeframe, start, end });
           if (bars.length < 100) {
             skippedForInsufficientBars += 1;
             continue;

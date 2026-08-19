@@ -22,7 +22,6 @@ const hasCredentials = Boolean(env.ALPACA_API_KEY && env.ALPACA_API_SECRET);
 
 const alpacaClient = axios.create({
   baseURL: env.ALPACA_DATA_BASE_URL,
-  timeout: env.ALPACA_REQUEST_TIMEOUT_MS,
   headers: hasCredentials
     ? {
         "APCA-API-KEY-ID": env.ALPACA_API_KEY,
