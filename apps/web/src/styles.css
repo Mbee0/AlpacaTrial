@@ -568,18 +568,37 @@ ul {
   animation: statusWave 2s linear infinite;
 }
 
-.chart-status-trail {
-  margin: 0.1rem 0 0;
-  padding-left: 1rem;
-  max-width: min(640px, 88%);
-  font-size: 0.74rem;
-  color: #c4d4f0;
-  display: grid;
-  gap: 0.18rem;
+.chart-progress-track {
+  width: min(640px, 90%);
+  height: 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(160, 186, 228, 0.55);
+  background: rgba(62, 84, 116, 0.45);
+  overflow: hidden;
 }
 
-.chart-status-trail li {
-  line-height: 1.28;
+.chart-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6b9dff 0%, #8fc8ff 55%, #b6d8ff 100%);
+  transition: width 220ms ease;
+}
+
+.chart-progress-label {
+  font-size: 0.74rem;
+  color: #d3e2fb;
+  font-weight: 600;
+}
+
+.chart-inline-progress {
+  margin-top: 0.45rem;
+  border: 1px solid rgba(141, 171, 222, 0.35);
+  border-radius: var(--ui-radius);
+  background: rgba(46, 64, 92, 0.42);
+  padding: 0.36rem 0.45rem;
+  display: grid;
+  gap: 0.3rem;
 }
 
 .splitter {
