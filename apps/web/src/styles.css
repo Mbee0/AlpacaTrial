@@ -1,7 +1,17 @@
 :root {
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  color: #e5e7eb;
-  background-color: #070b13;
+  font-family: Inter, "DM Sans", "Segoe UI", "Trebuchet MS", Roboto, system-ui, -apple-system, sans-serif;
+  --bg: #1b2638;
+  --bg-soft: #202d42;
+  --panel: #243247;
+  --panel-soft: #2a3950;
+  --line: #415674;
+  --text: #e9f1ff;
+  --muted: #b6c5de;
+  --bull: #1ed67c;
+  --bear: #ff5a7d;
+  --accent: #8db6ff;
+  color: var(--text);
+  background-color: var(--bg);
   color-scheme: dark;
 }
 
@@ -17,11 +27,8 @@ body,
 
 body {
   margin: 0;
-  background:
-    radial-gradient(1200px 600px at 20% -10%, #345891 0%, rgba(32, 47, 74, 0) 60%),
-    radial-gradient(900px 500px at 100% 0%, #4b3f77 0%, rgba(28, 40, 64, 0) 55%),
-    #182437;
-  color: #e5e7eb;
+  background: linear-gradient(180deg, #1d2a3f 0%, #1a2638 100%);
+  color: var(--text);
   overflow: hidden;
 }
 
@@ -47,7 +54,7 @@ body {
 
 .taskbar-brand {
   height: 40px;
-  color: #d7e6ff;
+  color: var(--accent);
   font-weight: 700;
   letter-spacing: 0.06em;
   font-size: 0.74rem;
@@ -67,7 +74,7 @@ body {
   border: none;
   border-radius: 0;
   background: transparent;
-  color: #cfdbf2;
+  color: #c8d7ef;
   min-height: 58px;
   width: 100%;
   display: flex;
@@ -103,10 +110,10 @@ body {
   gap: 1rem;
   align-items: end;
   flex-wrap: wrap;
-  border: 1px solid rgba(173, 188, 220, 0.2);
+  border: 1px solid var(--line);
   border-radius: 14px;
   padding: 0.85rem 1rem;
-  background: linear-gradient(165deg, rgba(50, 72, 109, 0.66), rgba(30, 43, 65, 0.66));
+  background: var(--bg-soft);
 }
 
 .app-header h1 {
@@ -116,7 +123,7 @@ body {
 
 .app-header p {
   margin: 0.3rem 0 0;
-  color: #9bb0d2;
+  color: var(--muted);
   font-size: 0.84rem;
 }
 
@@ -129,17 +136,17 @@ body {
 .summary-item {
   padding: 0.12rem 0.25rem;
   font-size: 0.75rem;
-  color: #dce8ff;
-  border-bottom: 1px solid rgba(164, 182, 214, 0.25);
+  color: #d8e7ff;
+  border-bottom: 1px solid rgba(141, 171, 222, 0.3);
 }
 
 select,
 button,
 input {
   border-radius: 6px;
-  border: 1px solid rgba(140, 162, 204, 0.5);
-  background: rgba(41, 57, 86, 0.66);
-  color: #edf3ff;
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+  color: var(--text);
   padding: 0.4rem 0.55rem;
   min-height: 33px;
 }
@@ -154,20 +161,20 @@ button {
 }
 
 button:hover {
-  border-color: #9fc0f1;
-  background: rgba(69, 92, 133, 0.82);
+  border-color: #a6c4f5;
+  background: #32455f;
 }
 
 .taskbar-button:hover {
   border-color: transparent;
-  background: rgba(83, 115, 162, 0.2);
+  background: rgba(86, 122, 173, 0.2);
 }
 
 .taskbar-button.active,
 .taskbar-button.active:hover {
-  background: rgba(80, 122, 185, 0.28);
-  box-shadow: inset 3px 0 0 #93c5fd;
-  color: #eef5ff;
+  background: rgba(90, 130, 187, 0.3);
+  box-shadow: inset 3px 0 0 var(--accent);
+  color: #f7fbff;
 }
 
 .layout {
@@ -199,8 +206,8 @@ button:hover {
 }
 
 .panel {
-  background: linear-gradient(170deg, rgba(37, 52, 79, 0.9), rgba(29, 41, 63, 0.86));
-  border: 1px solid rgba(134, 154, 192, 0.24);
+  background: var(--panel);
+  border: 1px solid var(--line);
   border-radius: 0;
   padding: 0.62rem;
   display: flex;
@@ -216,7 +223,7 @@ button:hover {
 }
 
 .muted {
-  color: #93a0ba;
+  color: var(--muted);
   margin-top: 0;
   font-size: 0.86rem;
 }
@@ -226,7 +233,7 @@ button:hover {
   min-height: 0;
   overflow: auto;
   border-radius: 0;
-  border: 1px solid rgba(123, 143, 180, 0.28);
+  border: 1px solid var(--line);
 }
 
 table {
@@ -237,7 +244,7 @@ table {
 
 th,
 td {
-  border-bottom: 1px solid rgba(113, 131, 164, 0.34);
+  border-bottom: 1px solid rgba(112, 133, 168, 0.35);
   padding: 0.38rem;
   text-align: left;
   white-space: nowrap;
@@ -247,7 +254,7 @@ thead th {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: rgba(45, 62, 95, 0.94);
+  background: #2a3952;
 }
 
 tr {
@@ -255,11 +262,11 @@ tr {
 }
 
 tr:hover {
-  background: rgba(82, 118, 177, 0.28);
+  background: rgba(110, 144, 204, 0.22);
 }
 
 tr.selected {
-  background: rgba(90, 131, 194, 0.34);
+  background: rgba(118, 156, 223, 0.3);
 }
 
 ul {
@@ -278,16 +285,16 @@ ul {
 }
 
 .score-card {
-  border: 1px solid rgba(128, 148, 190, 0.28);
+  border: 1px solid var(--line);
   border-radius: 0;
-  background: rgba(44, 60, 90, 0.62);
+  background: #2b3a52;
   padding: 0.42rem;
   display: flex;
   flex-direction: column;
 }
 
 .score-card strong {
-  color: #9fb0cf;
+  color: #c0d0ea;
   font-size: 0.8rem;
   margin-bottom: 0.2rem;
 }
@@ -318,20 +325,20 @@ ul {
 
 .scanner-controls label {
   font-size: 0.72rem;
-  color: #9eb0ce;
+  color: var(--muted);
 }
 
 .error {
   padding: 0.7rem;
   border-radius: 0;
-  border: 1px solid #7f1d1d;
-  background: rgba(127, 29, 29, 0.5);
+  border: 1px solid #c63c5d;
+  background: rgba(170, 39, 71, 0.45);
   margin-bottom: 0.8rem;
 }
 
 .loading {
   margin-bottom: 0.8rem;
-  color: #b3bfd7;
+  color: var(--muted);
 }
 
 .overview-strip {
@@ -341,9 +348,9 @@ ul {
 }
 
 .overview-card {
-  border: 1px solid rgba(142, 164, 207, 0.28);
+  border: 1px solid var(--line);
   border-radius: 0;
-  background: linear-gradient(160deg, rgba(53, 76, 116, 0.76), rgba(34, 49, 76, 0.78));
+  background: #2a3950;
   padding: 0.55rem 0.65rem;
   display: flex;
   flex-direction: column;
@@ -366,7 +373,7 @@ ul {
 
 .layout-control label {
   font-size: 0.72rem;
-  color: #c5d3ef;
+  color: var(--muted);
   white-space: nowrap;
 }
 
@@ -380,12 +387,12 @@ ul {
 
 .layout-control span {
   font-size: 0.72rem;
-  color: #dbe7ff;
+  color: #dce9ff;
 }
 
 .overview-card span {
   font-size: 0.74rem;
-  color: #98aac8;
+  color: var(--muted);
 }
 
 .overview-card strong {

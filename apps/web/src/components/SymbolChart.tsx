@@ -37,28 +37,28 @@ function projectLineValueAt(line: SymbolAnalysisResponse["trendlines"][number], 
 
 function trendlineColor(line: SymbolAnalysisResponse["trendlines"][number]) {
   if (line.kind === "SAFETY_LOSS") {
-    return "#f59e0b";
+    return "#fbbf24";
   }
 
   if (line.direction === "BULLISH") {
     if (line.kind === "ACTION") {
-      return "#22c55e";
+      return "#1ed67c";
     }
     if (line.kind === "SAFETY") {
-      return "#4ade80";
+      return "#6ee7a6";
     }
-    return "#16a34a";
+    return "#0ea565";
   }
   if (line.direction === "BEARISH") {
     if (line.kind === "ACTION") {
-      return "#ef4444";
+      return "#ff5a7d";
     }
     if (line.kind === "SAFETY") {
-      return "#f87171";
+      return "#ff8aa0";
     }
-    return "#b91c1c";
+    return "#e04163";
   }
-  return "#9ca3af";
+  return "#c3d0e5";
 }
 
 function trendlineStyle(line: SymbolAnalysisResponse["trendlines"][number]) {
@@ -86,18 +86,18 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
 
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: "#0e111a" },
-        textColor: "#d1d4dc"
+        background: { type: ColorType.Solid, color: "#1f2c40" },
+        textColor: "#d9e6fb"
       },
       width: containerRef.current.clientWidth,
       height: Math.max(320, containerRef.current.clientHeight),
       grid: {
-        vertLines: { color: "#1f2736" },
-        horzLines: { color: "#1f2736" }
+        vertLines: { color: "#344863" },
+        horzLines: { color: "#344863" }
       },
       crosshair: { mode: 1 },
-      rightPriceScale: { borderColor: "#2a3042" },
-      timeScale: { borderColor: "#2a3042", timeVisible: true }
+      rightPriceScale: { borderColor: "#405672" },
+      timeScale: { borderColor: "#405672", timeVisible: true }
     });
 
     chartRef.current = chart;
@@ -131,11 +131,11 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
     markersPluginRef.current = null;
 
     const candles = chart.addSeries(CandlestickSeries, {
-      upColor: "#22c55e",
-      downColor: "#ef4444",
+      upColor: "#1ed67c",
+      downColor: "#ff5a7d",
       borderVisible: false,
-      wickUpColor: "#22c55e",
-      wickDownColor: "#ef4444"
+      wickUpColor: "#1ed67c",
+      wickDownColor: "#ff5a7d"
     });
     candles.setData(
       analysis.bars.map((bar) => ({
@@ -149,7 +149,7 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
     cleanupSeriesRef.current.push(candles);
 
     const volume = chart.addSeries(HistogramSeries, {
-      color: "#1e3a8a",
+      color: "#6b8fcf",
       priceFormat: { type: "volume" },
       priceScaleId: "volume"
     });
@@ -163,7 +163,7 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
       analysis.bars.map((bar) => ({
         time: toUtcTimestamp(bar.timestamp),
         value: bar.volume,
-        color: bar.close >= bar.open ? "#22c55e66" : "#ef444466"
+        color: bar.close >= bar.open ? "#1ed67c88" : "#ff5a7d88"
       }))
     );
     cleanupSeriesRef.current.push(volume);
@@ -189,14 +189,14 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
       {
         time: toUtcTimestamp(trade.entryTime),
         position: "belowBar" as const,
-        color: "#22c55e",
+        color: "#1ed67c",
         shape: "arrowUp" as const,
         text: `Entry ${trade.entryPrice.toFixed(2)}`
       },
       {
         time: toUtcTimestamp(trade.exitTime),
         position: "aboveBar" as const,
-        color: "#ef4444",
+        color: "#ff5a7d",
         shape: "arrowDown" as const,
         text: `Exit ${trade.exitPrice.toFixed(2)}`
       }

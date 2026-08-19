@@ -73,10 +73,10 @@ export function PortfolioPage({ data, loading, error, onSelectSymbol }: Portfoli
                   <td>{position.avgEntryPrice.toFixed(2)}</td>
                   <td>{position.currentPrice.toFixed(2)}</td>
                   <td>{position.marketValue.toFixed(2)}</td>
-                  <td style={{ color: position.unrealizedPnl >= 0 ? "#22c55e" : "#ef4444" }}>
+                  <td style={{ color: position.unrealizedPnl >= 0 ? "#1ed67c" : "#ff5a7d" }}>
                     {position.unrealizedPnl.toFixed(2)}
                   </td>
-                  <td style={{ color: position.realizedPnl >= 0 ? "#22c55e" : "#ef4444" }}>
+                  <td style={{ color: position.realizedPnl >= 0 ? "#1ed67c" : "#ff5a7d" }}>
                     {position.realizedPnl.toFixed(2)}
                   </td>
                   <td>{position.stop?.toFixed(2) ?? "-"}</td>

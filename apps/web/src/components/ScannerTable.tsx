@@ -18,13 +18,13 @@ interface ScannerTableProps {
 function signalColor(signal: ScannerRow["signal"]) {
   switch (signal) {
     case "LONG":
-      return "#22c55e";
+      return "#1ed67c";
     case "SHORT":
-      return "#ef4444";
+      return "#ff5a7d";
     case "WATCH":
-      return "#f59e0b";
+      return "#fbbf24";
     default:
-      return "#9ca3af";
+      return "#b9c5d9";
   }
 }
 
