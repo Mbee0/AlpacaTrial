@@ -3,6 +3,19 @@ import { prisma } from "../db.js";
 import { timeframeToPrisma } from "../utils/timeframe.js";
 import { fetchHistoricalBars } from "./alpacaDataService.js";
 
+function timeframeMs(timeframe: Timeframe) {
+  if (timeframe === "15Min") {
+    return 15 * 60 * 1000;
+  }
+  if (timeframe === "1Hour") {
+    return 60 * 60 * 1000;
+  }
+  if (timeframe === "4Hour") {
+    return 4 * 60 * 60 * 1000;
+  }
+  return 24 * 60 * 60 * 1000;
+}
+
 async function ensureAsset(symbol: string) {
   return prisma.asset.upsert({
     where: { symbol },
@@ -38,7 +51,17 @@ export async function getBars(params: {
     orderBy: { timestamp: "asc" }
   });
 
-  const needsFetch = forceRefresh || cachedBars.length < 50;
+  const intervalMs = timeframeMs(timeframe);
+  const requestedStartMs = start.getTime();
+  const requestedEndMs = end.getTime();
+  const cachedStartMs = cachedBars[0]?.timestamp.getTime();
+  const cachedEndMs = cachedBars[cachedBars.length - 1]?.timestamp.getTime();
+  const historicalWindowClosed = requestedEndMs < Date.now() - intervalMs * 8;
+  const missingStartCoverage =
+    cachedBars.length === 0 || !cachedStartMs || cachedStartMs > requestedStartMs + intervalMs * 2;
+  const missingEndCoverage =
+    historicalWindowClosed && (cachedBars.length === 0 || !cachedEndMs || cachedEndMs < requestedEndMs - intervalMs * 2);
+  const needsFetch = forceRefresh || missingStartCoverage || missingEndCoverage;
   if (needsFetch) {
     onProgress?.("Requesting missing bars from Alpaca...");
     const fetchedBars = await fetchHistoricalBars({ symbol, timeframe, start, end });

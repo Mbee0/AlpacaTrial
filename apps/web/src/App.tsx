@@ -21,6 +21,7 @@ const timeframeOptions: Timeframe[] = ["1Day", "4Hour", "1Hour", "15Min"];
 type ViewMode = "dashboard" | "portfolio" | "help";
 type DragMode = "vertical" | "left-horizontal" | "right-horizontal" | null;
 type ChartRangePreset = "1H" | "1D" | "1M" | "6M" | "1Y" | "5Y" | "10Y" | "YTD" | "ALL";
+type ChartAggregation = "none" | "5D" | "2W" | "1M";
 const APP_STATE_KEY = "trader-ui-state-v1";
 const SPLITTER_PX = 4;
 const MIN_BOTTOM_PANE_PX = 150;
@@ -41,6 +42,19 @@ function resolveChartBarsTimeframe(baseTimeframe: Timeframe, preset: ChartRangeP
     return baseTimeframe;
   }
   return "1Day";
+}
+
+function resolveChartAggregation(preset: ChartRangePreset): ChartAggregation {
+  if (preset === "5Y") {
+    return "5D";
+  }
+  if (preset === "10Y") {
+    return "2W";
+  }
+  if (preset === "ALL") {
+    return "1M";
+  }
+  return "none";
 }
 
 function buildRangeForPreset(preset: ChartRangePreset) {
@@ -79,6 +93,92 @@ function buildRangeForPreset(preset: ChartRangePreset) {
     start: start.toISOString(),
     end: end.toISOString()
   };
+}
+
+function aggregateBars(sourceBars: OhlcvBar[] | undefined, aggregation: ChartAggregation): OhlcvBar[] | undefined {
+  if (!sourceBars || sourceBars.length === 0 || aggregation === "none") {
+    return sourceBars;
+  }
+
+  const sortedBars = [...sourceBars].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  const buckets = new Map<string, OhlcvBar[]>();
+  const fiveDayMs = 5 * 24 * 60 * 60 * 1000;
+  const twoWeekMs = 14 * 24 * 60 * 60 * 1000;
+
+  for (const bar of sortedBars) {
+    const ms = new Date(bar.timestamp).getTime();
+    if (!Number.isFinite(ms)) {
+      continue;
+    }
+
+    let bucketKey: string;
+    if (aggregation === "5D") {
+      bucketKey = `5d-${Math.floor(ms / fiveDayMs)}`;
+    } else if (aggregation === "2W") {
+      bucketKey = `2w-${Math.floor(ms / twoWeekMs)}`;
+    } else {
+      const date = new Date(ms);
+      bucketKey = `1m-${date.getUTCFullYear()}-${date.getUTCMonth()}`;
+    }
+
+    const group = buckets.get(bucketKey);
+    if (group) {
+      group.push(bar);
+    } else {
+      buckets.set(bucketKey, [bar]);
+    }
+  }
+
+  const aggregatedBars: OhlcvBar[] = [];
+  for (const group of buckets.values()) {
+    const ordered = group.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    const open = ordered[0];
+    const close = ordered[ordered.length - 1];
+    let high = Number.NEGATIVE_INFINITY;
+    let low = Number.POSITIVE_INFINITY;
+    let volume = 0;
+
+    for (const bar of ordered) {
+      if (Number.isFinite(bar.high)) {
+        high = Math.max(high, bar.high);
+      }
+      if (Number.isFinite(bar.low)) {
+        low = Math.min(low, bar.low);
+      }
+      if (Number.isFinite(bar.volume)) {
+        volume += bar.volume;
+      }
+    }
+
+    if (!Number.isFinite(open.open) || !Number.isFinite(close.close) || !Number.isFinite(high) || !Number.isFinite(low)) {
+      continue;
+    }
+
+    aggregatedBars.push({
+      symbol: open.symbol,
+      timestamp: open.timestamp,
+      open: open.open,
+      high,
+      low,
+      close: close.close,
+      volume
+    });
+  }
+
+  return aggregatedBars.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+}
+
+function chartIntervalLabel(base: Timeframe, aggregation: ChartAggregation): string {
+  if (aggregation === "5D") {
+    return "5Day";
+  }
+  if (aggregation === "2W") {
+    return "2Week";
+  }
+  if (aggregation === "1M") {
+    return "1Month";
+  }
+  return base;
 }
 
 function formatFixed(value: unknown, digits: number): string {
@@ -194,6 +294,15 @@ export default function App() {
   const chartBarsTimeframe = useMemo(
     () => resolveChartBarsTimeframe(timeframe, chartRangePreset),
     [timeframe, chartRangePreset]
+  );
+  const chartAggregation = useMemo(() => resolveChartAggregation(chartRangePreset), [chartRangePreset]);
+  const displayChartBars = useMemo(
+    () => aggregateBars(chartBars, chartAggregation),
+    [chartBars, chartAggregation]
+  );
+  const chartInterval = useMemo(
+    () => chartIntervalLabel(chartBarsTimeframe, chartAggregation),
+    [chartBarsTimeframe, chartAggregation]
   );
 
   useEffect(() => {
@@ -317,7 +426,7 @@ export default function App() {
       setAnalysis(cachedAnalysis);
       setBacktest(cachedBacktest);
       setChartBarsLoading(true);
-      setChartStatusMessage(`Fetching candlestick history (${chartBarsTimeframe})...`);
+      setChartStatusMessage(`Fetching candlestick history (${chartIntervalLabel(chartBarsTimeframe, chartAggregation)})...`);
       setChartStatusProgress(chartProgressFromStatus("Fetching candlestick history..."));
       try {
         const marketBarsResponse = await fetchMarketBars(selectedSymbol, chartBarsTimeframe, range);
@@ -348,7 +457,7 @@ export default function App() {
     };
 
     loadChartBars();
-  }, [selectedSymbol, timeframe, chartRangePreset, chartBarsTimeframe]);
+  }, [selectedSymbol, timeframe, chartRangePreset, chartBarsTimeframe, chartAggregation]);
 
   const runAnalysis = async () => {
     if (!selectedSymbol) {
@@ -670,7 +779,7 @@ export default function App() {
                         {preset}
                       </button>
                     ))}
-                    <span className="chart-range-interval">Bar interval: {chartBarsTimeframe}</span>
+                    <span className="chart-range-interval">Bar interval: {chartInterval}</span>
                   </div>
                   {(chartBarsLoading || detailsLoading) && (
                     <div className="chart-inline-status" aria-live="polite">
@@ -689,7 +798,7 @@ export default function App() {
                     </div>
                   )}
                   <div className="chart-host">
-                    {chartBarsLoading && (!chartBars || chartBars.length === 0) ? (
+                    {chartBarsLoading && (!displayChartBars || displayChartBars.length === 0) ? (
                       <div className="chart-loading">
                         <div className="wave-loader" role="status" aria-label="Loading chart analysis">
                           <span className="wave-dot" />
@@ -711,12 +820,12 @@ export default function App() {
                           </div>
                         </div>
                       </div>
-                    ) : !chartBars || chartBars.length === 0 ? (
+                    ) : !displayChartBars || displayChartBars.length === 0 ? (
                       <div className="chart-loading">
                         <p className="muted">Select a symbol to load chart history.</p>
                       </div>
                     ) : (
-                      <SymbolChart analysis={analysis} bars={chartBars} backtestTrades={backtest?.tradeList} />
+                      <SymbolChart analysis={analysis} bars={displayChartBars} backtestTrades={backtest?.tradeList} />
                     )}
                   </div>
                 </div>
