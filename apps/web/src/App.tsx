@@ -70,6 +70,7 @@ export default function App() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
   const [chartStatusMessage, setChartStatusMessage] = useState("Preparing chart analysis...");
+  const [chartStatusTrail, setChartStatusTrail] = useState<string[]>([]);
   const [error, setError] = useState<string>();
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [leftPanePct, setLeftPanePct] = useState(38);
@@ -211,7 +212,17 @@ export default function App() {
 
       setDetailsLoading(true);
       setChartStatusMessage("Preparing chart analysis...");
+      setChartStatusTrail(["Preparing chart analysis..."]);
       let statusPollTimer: number | undefined;
+      const pushStatusMessage = (message: string) => {
+        setChartStatusMessage(message);
+        setChartStatusTrail((existing) => {
+          if (existing[existing.length - 1] === message) {
+            return existing;
+          }
+          return [...existing.slice(-5), message];
+        });
+      };
       const clearStatusPolling = () => {
         if (statusPollTimer) {
           window.clearInterval(statusPollTimer);
@@ -224,7 +235,9 @@ export default function App() {
           if (requestId !== detailRequestIdRef.current) {
             return;
           }
-          setChartStatusMessage(status.message);
+          if (status.state !== "unknown") {
+            pushStatusMessage(status.message);
+          }
         } catch {
           // Ignore transient status polling failures while main request is in-flight.
         }
@@ -247,7 +260,7 @@ export default function App() {
         setAnalysis(analysisResponse);
         setBacktest(backtestResponse);
         setError(undefined);
-        setChartStatusMessage("Chart analysis complete.");
+        pushStatusMessage("Chart analysis complete.");
       } catch (err) {
         if (requestId !== detailRequestIdRef.current) {
           clearStatusPolling();
@@ -255,7 +268,7 @@ export default function App() {
         }
         clearStatusPolling();
         setError(err instanceof Error ? err.message : "Failed to load details.");
-        setChartStatusMessage("Analysis request failed.");
+        pushStatusMessage("Analysis request failed.");
       } finally {
         clearStatusPolling();
       }
@@ -465,6 +478,13 @@ export default function App() {
                         <div className="status-wave-text" aria-live="polite">
                           {chartStatusMessage}
                         </div>
+                        {chartStatusTrail.length > 0 && (
+                          <ul className="chart-status-trail">
+                            {chartStatusTrail.map((message, index) => (
+                              <li key={`${message}-${index}`}>{message}</li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     ) : (
                       <SymbolChart analysis={analysis} backtestTrades={backtest?.tradeList} />
