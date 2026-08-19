@@ -31,30 +31,6 @@ const SPLITTER_PX = 4;
 const MIN_BOTTOM_PANE_PX = 150;
 const MAX_BOTTOM_PANE_PX = 460;
 const DETAIL_RETRY_THRESHOLD_MS = 12_000;
-const BASELINE_CHART_ONLY = true;
-const BASELINE_WATCHLIST = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "TSLA", "SPY", "QQQ"] as const;
-
-function baselineScannerRow(symbol: string, timeframe: Timeframe): ScannerRow {
-  return {
-    symbol,
-    timeframe,
-    signal: "HOLD",
-    trendDirection: "SIDEWAYS",
-    score: 0,
-    confidence: 0,
-    explanation: ["Baseline chart mode: candlestick loading only while we stabilize data flow."],
-    breakdown: {
-      trendStrength: 0,
-      trendlineQuality: 0,
-      breakoutStrength: 0,
-      volumeConfirmation: 0,
-      multiTimeframeAlignment: 0,
-      volatilitySuitability: 0,
-      riskReward: 0
-    },
-    lastPrice: 0
-  };
-}
 
 function TaskbarIcon({ viewMode }: { viewMode: ViewMode }) {
   if (viewMode === "dashboard") {
@@ -197,18 +173,6 @@ export default function App() {
 
   useEffect(() => {
     const loadScanner = async () => {
-      if (BASELINE_CHART_ONLY) {
-        const baselineRows = BASELINE_WATCHLIST.map((symbol) => baselineScannerRow(symbol, timeframe));
-        scannerCacheRef.current.set(timeframe, baselineRows);
-        setScannerRows(baselineRows);
-        if (!selectedSymbol) {
-          setSelectedSymbol(baselineRows[0].symbol);
-        }
-        setScannerLoading(false);
-        setError(undefined);
-        return;
-      }
-
       const cacheKey = timeframe;
       const cachedRows = scannerCacheRef.current.get(cacheKey);
       const hasCachedRows = Boolean(cachedRows && cachedRows.length > 0);
@@ -289,82 +253,6 @@ export default function App() {
       setChartStatusMessage("Preparing chart analysis...");
       setShowDetailRetryPrompt(false);
       setDetailFetchElapsedSec(0);
-
-      if (BASELINE_CHART_ONLY) {
-        let retryPromptTimer: number | undefined;
-        let elapsedTimer: number | undefined;
-        const startedAt = Date.now();
-        const clearTimers = () => {
-          if (retryPromptTimer) {
-            window.clearTimeout(retryPromptTimer);
-            retryPromptTimer = undefined;
-          }
-          if (elapsedTimer) {
-            window.clearInterval(elapsedTimer);
-            elapsedTimer = undefined;
-          }
-        };
-
-        setAnalysis(undefined);
-        setBacktest(undefined);
-        setBacktestLoading(false);
-        setBacktestError("Backtesting disabled temporarily while baseline chart mode is active.");
-        setChartStatusMessage("Fetching candlestick history...");
-
-        elapsedTimer = window.setInterval(() => {
-          if (requestId !== detailRequestIdRef.current) {
-            return;
-          }
-          setDetailFetchElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
-        }, 1000);
-        retryPromptTimer = window.setTimeout(() => {
-          if (requestId !== detailRequestIdRef.current) {
-            return;
-          }
-          setShowDetailRetryPrompt(true);
-        }, DETAIL_RETRY_THRESHOLD_MS);
-
-        try {
-          const barsResponse = await fetchMarketBars(selectedSymbol, timeframe);
-          if (requestId !== detailRequestIdRef.current) {
-            clearTimers();
-            return;
-          }
-          clearTimers();
-          barsCacheRef.current.set(barsKey, barsResponse.bars);
-          setChartBars(barsResponse.bars);
-          const latestClose = barsResponse.bars[barsResponse.bars.length - 1]?.close;
-          if (typeof latestClose === "number") {
-            setScannerRows((rows) =>
-              rows.map((row) => (row.symbol === selectedSymbol ? { ...row, lastPrice: latestClose } : row))
-            );
-          }
-          setChartStatusMessage("Candlestick chart ready.");
-          setShowDetailRetryPrompt(false);
-          setDetailFetchElapsedSec(0);
-          setChartError(undefined);
-          setError(undefined);
-        } catch (err) {
-          if (requestId !== detailRequestIdRef.current) {
-            clearTimers();
-            return;
-          }
-          clearTimers();
-          const message = err instanceof Error ? err.message : "Failed to load chart bars.";
-          setChartError(message);
-          setError(message);
-          setChartStatusMessage("Candlestick fetch failed.");
-          setShowDetailRetryPrompt(true);
-        } finally {
-          clearTimers();
-          if (requestId === detailRequestIdRef.current) {
-            setDetailsLoading(false);
-            setChartBootstrapComplete(true);
-          }
-        }
-        return;
-      }
-
       let statusPollTimer: number | undefined;
       let retryPromptTimer: number | undefined;
       let elapsedTimer: number | undefined;
@@ -531,12 +419,6 @@ export default function App() {
       return;
     }
 
-    setScannerRows((rows) => {
-      if (rows.some((row) => row.symbol === normalized)) {
-        return rows;
-      }
-      return [baselineScannerRow(normalized, timeframe), ...rows];
-    });
     setSelectedSymbol(normalized);
     setSearchSymbol(normalized);
     setViewMode("dashboard");
