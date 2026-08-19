@@ -605,20 +605,30 @@ ul {
 }
 
 .saved-track-toggle {
-  background: #3f3652;
-  border-color: #8060b1;
-  color: #eadbff;
+  min-height: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  font-size: 1.15rem;
+  line-height: 1;
+  color: #8f9fbb;
 }
 
 .saved-track-toggle.active {
-  background: #624689;
-  border-color: #b395e6;
-  color: #fff5c5;
+  color: #f4c84d;
 }
 
 .saved-track-toggle:disabled {
-  opacity: 0.6;
+  opacity: 0.35;
   cursor: not-allowed;
+}
+
+.saved-track-toggle:hover:not(:disabled),
+.saved-track-toggle:focus-visible {
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 .analysis-run-button:hover:not(:disabled) {

@@ -924,8 +924,9 @@ export default function App() {
                         disabled={!selectedSymbol}
                         onClick={handleToggleSavedTrack}
                         title={isSelectedSymbolSaved ? "Remove from saved tracks" : "Save to tracked symbols"}
+                        aria-label={isSelectedSymbolSaved ? "Remove from saved tracks" : "Save to tracked symbols"}
                       >
-                        {isSelectedSymbolSaved ? "★ Saved" : "☆ Save"}
+                        {isSelectedSymbolSaved ? "★" : "☆"}
                       </button>
                       <button
                         type="button"
