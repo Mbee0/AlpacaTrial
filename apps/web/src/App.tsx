@@ -3,7 +3,6 @@ import { ScannerRow, Timeframe } from "@trader/shared";
 import {
   fetchAnalysisStatus,
   fetchBacktest,
-  fetchMarketBars,
   fetchPortfolioSummary,
   fetchScanner,
   fetchSymbolAnalysisWithRequestId
@@ -30,65 +29,6 @@ const APP_STATE_KEY = "trader-ui-state-v1";
 const SPLITTER_PX = 4;
 const MIN_BOTTOM_PANE_PX = 150;
 const MAX_BOTTOM_PANE_PX = 460;
-
-function progressFromStatus(message: string) {
-  const text = message.toLowerCase();
-  if (text.includes("queued") || text.includes("starting symbol analysis")) return 8;
-  if (text.includes("preparing chart analysis")) return 12;
-  if (text.includes("resolving asset metadata")) return 22;
-  if (text.includes("checking local historical cache")) return 34;
-  if (text.includes("using local cached bars")) return 52;
-  if (text.includes("fetching candlestick history from alpaca") || text.includes("requesting missing bars")) return 52;
-  if (text.includes("persisting bars")) return 66;
-  if (text.includes("candlestick chart ready")) return 72;
-  if (text.includes("candlestick history loaded")) return 74;
-  if (text.includes("detecting swing points")) return 80;
-  if (text.includes("scoring rays")) return 90;
-  if (text.includes("finalizing chart payload")) return 96;
-  if (text.includes("failed")) return 100;
-  if (text.includes("complete")) return 100;
-  return 14;
-}
-
-function buildChartPreviewAnalysis(params: {
-  symbol: string;
-  timeframe: Timeframe;
-  bars: SymbolAnalysisResponse["bars"];
-  fallbackSignal?: ScannerRow;
-}): SymbolAnalysisResponse {
-  const fallbackSignal: ScannerRow =
-    params.fallbackSignal ??
-    ({
-      symbol: params.symbol,
-      timeframe: params.timeframe,
-      signal: "HOLD",
-      trendDirection: "SIDEWAYS",
-      score: 0,
-      confidence: 0,
-      explanation: ["Candles loaded. Trendline analysis is still in progress."],
-      breakdown: {
-        trendStrength: 0,
-        trendlineQuality: 0,
-        breakoutStrength: 0,
-        volumeConfirmation: 0,
-        multiTimeframeAlignment: 0,
-        volatilitySuitability: 0,
-        riskReward: 0
-      },
-      lastPrice: params.bars[params.bars.length - 1]?.close ?? 0
-    } satisfies ScannerRow);
-
-  return {
-    symbol: params.symbol,
-    timeframe: params.timeframe,
-    lastPrice: params.bars[params.bars.length - 1]?.close ?? 0,
-    bars: params.bars,
-    swings: [],
-    trendlines: [],
-    signal: fallbackSignal,
-    scannerRow: fallbackSignal
-  };
-}
 
 function TaskbarIcon({ viewMode }: { viewMode: ViewMode }) {
   if (viewMode === "dashboard") {
@@ -137,7 +77,6 @@ export default function App() {
   const [portfolioLoading, setPortfolioLoading] = useState(false);
   const [chartStatusMessage, setChartStatusMessage] = useState("Preparing chart analysis...");
   const [chartStatusTrail, setChartStatusTrail] = useState<string[]>([]);
-  const [chartStatusProgress, setChartStatusProgress] = useState(8);
   const [error, setError] = useState<string>();
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [leftPanePct, setLeftPanePct] = useState(38);
@@ -280,11 +219,9 @@ export default function App() {
       setDetailsLoading(true);
       setChartStatusMessage("Preparing chart analysis...");
       setChartStatusTrail(["Preparing chart analysis..."]);
-      setChartStatusProgress(10);
       let statusPollTimer: number | undefined;
       const pushStatusMessage = (message: string) => {
         setChartStatusMessage(message);
-        setChartStatusProgress((current) => Math.max(current, progressFromStatus(message)));
         setChartStatusTrail((existing) => {
           if (existing[existing.length - 1] === message) {
             return existing;
@@ -314,55 +251,22 @@ export default function App() {
       statusPollTimer = window.setInterval(pollStatus, 450);
       void pollStatus();
 
-      const barsPrefetch = fetchMarketBars(selectedSymbol, timeframe)
-        .then((barsResponse) => {
-          if (requestId !== detailRequestIdRef.current) {
-            return;
-          }
-          setAnalysis((current) => {
-            if (current && current.symbol === selectedSymbol && current.timeframe === timeframe && current.bars.length > 0) {
-              return current;
-            }
-            return buildChartPreviewAnalysis({
-              symbol: selectedSymbol,
-              timeframe,
-              bars: barsResponse.bars,
-              fallbackSignal: selectedSignal
-            });
-          });
-          pushStatusMessage("Candlestick chart ready. Continuing line analysis...");
-        })
-        .catch(() => {
-          // Keep going with full analysis path; it can still return bars.
-        });
-
       try {
-        const analysisResponse = await fetchSymbolAnalysisWithRequestId(selectedSymbol, timeframe, bufferPct, statusRequestId);
+        const [analysisResponse, backtestResponse] = await Promise.all([
+          fetchSymbolAnalysisWithRequestId(selectedSymbol, timeframe, bufferPct, statusRequestId),
+          fetchBacktest(selectedSymbol, timeframe)
+        ]);
         if (requestId !== detailRequestIdRef.current) {
           clearStatusPolling();
           return;
         }
-        await barsPrefetch;
         clearStatusPolling();
         analysisCacheRef.current.set(cacheKey, analysisResponse);
+        backtestCacheRef.current.set(backtestKey, backtestResponse);
         setAnalysis(analysisResponse);
+        setBacktest(backtestResponse);
         setError(undefined);
         pushStatusMessage("Chart analysis complete.");
-        setChartStatusProgress(100);
-
-        if (!cachedBacktest) {
-          void fetchBacktest(selectedSymbol, timeframe)
-            .then((backtestResponse) => {
-              if (requestId !== detailRequestIdRef.current) {
-                return;
-              }
-              backtestCacheRef.current.set(backtestKey, backtestResponse);
-              setBacktest(backtestResponse);
-            })
-            .catch(() => {
-              // Backtest is secondary to chart inspection; keep the chart visible if it fails.
-            });
-        }
       } catch (err) {
         if (requestId !== detailRequestIdRef.current) {
           clearStatusPolling();
@@ -371,7 +275,6 @@ export default function App() {
         clearStatusPolling();
         setError(err instanceof Error ? err.message : "Failed to load details.");
         pushStatusMessage("Analysis request failed.");
-        setChartStatusProgress(100);
       } finally {
         clearStatusPolling();
       }
@@ -604,24 +507,18 @@ export default function App() {
                         <div className="status-wave-text" aria-live="polite">
                           {chartStatusMessage}
                         </div>
-                        <div className="chart-progress-track" aria-hidden="true">
-                          <span className="chart-progress-fill" style={{ width: `${chartStatusProgress}%` }} />
-                        </div>
-                        <div className="chart-progress-label">{Math.round(chartStatusProgress)}%</div>
+                        {chartStatusTrail.length > 0 && (
+                          <ul className="chart-status-trail">
+                            {chartStatusTrail.map((message, index) => (
+                              <li key={`${message}-${index}`}>{message}</li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     ) : (
                       <SymbolChart analysis={analysis} backtestTrades={backtest?.tradeList} />
                     )}
                   </div>
-                  {detailsLoading && analysis && (
-                    <div className="chart-inline-progress">
-                      <div className="status-wave-text">{chartStatusMessage}</div>
-                      <div className="chart-progress-track" aria-hidden="true">
-                        <span className="chart-progress-fill" style={{ width: `${chartStatusProgress}%` }} />
-                      </div>
-                      <div className="chart-progress-label">{Math.round(chartStatusProgress)}%</div>
-                    </div>
-                  )}
                 </div>
                 <div
                   className={`splitter splitter-horizontal ${
