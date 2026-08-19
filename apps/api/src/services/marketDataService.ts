@@ -24,6 +24,14 @@ function dedupeSortedBars(bars: OhlcvBar[]) {
   return Array.from(byTimestamp.values()).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 }
 
+function chunkArray<T>(items: T[], chunkSize: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+  return chunks;
+}
+
 async function ensureAsset(symbol: string) {
   return prisma.asset.upsert({
     where: { symbol },
@@ -74,36 +82,26 @@ export async function getBars(params: {
     onProgress?.("Requesting missing bars from Alpaca...");
     const fetchedBars = await fetchHistoricalBars({ symbol, timeframe, start, end });
     onProgress?.("Persisting bars to local database...");
-    await prisma.$transaction(
-      fetchedBars.map((bar) =>
-        prisma.marketBar.upsert({
-          where: {
-            assetId_timeframe_timestamp: {
-              assetId: asset.id,
-              timeframe: tf,
-              timestamp: new Date(bar.timestamp)
-            }
-          },
-          update: {
-            open: bar.open,
-            high: bar.high,
-            low: bar.low,
-            close: bar.close,
-            volume: bar.volume
-          },
-          create: {
-            assetId: asset.id,
-            timeframe: tf,
-            timestamp: new Date(bar.timestamp),
-            open: bar.open,
-            high: bar.high,
-            low: bar.low,
-            close: bar.close,
-            volume: bar.volume
-          }
-        })
-      )
-    );
+    const rows = fetchedBars.map((bar) => ({
+      assetId: asset.id,
+      timeframe: tf,
+      timestamp: new Date(bar.timestamp),
+      open: bar.open,
+      high: bar.high,
+      low: bar.low,
+      close: bar.close,
+      volume: bar.volume
+    }));
+    const batches = chunkArray(rows, 1000);
+    for (const [batchIndex, batch] of batches.entries()) {
+      await prisma.marketBar.createMany({
+        data: batch,
+        skipDuplicates: true
+      });
+      if (batches.length > 1) {
+        onProgress?.(`Persisting bars to local database... (${batchIndex + 1}/${batches.length})`);
+      }
+    }
     const mergedBars = dedupeSortedBars([
       ...cachedBars.map((bar) => ({
         symbol,

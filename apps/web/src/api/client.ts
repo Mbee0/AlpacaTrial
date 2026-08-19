@@ -12,10 +12,15 @@ const DEFAULT_TIMEOUT_MS = 20000;
 
 interface RequestOptions {
   timeoutMs?: number;
+  allowBaseFallback?: boolean;
 }
 
-function buildCandidateBaseUrls() {
+function buildCandidateBaseUrls(allowBaseFallback = true) {
   const primary = API_BASE_URL.replace(/\/+$/, "");
+  if (!allowBaseFallback) {
+    return [primary];
+  }
+
   const candidates = [primary];
 
   if (primary.endsWith("/api")) {
@@ -23,7 +28,9 @@ function buildCandidateBaseUrls() {
   } else {
     candidates.push(`${primary}/api`);
   }
-  candidates.push("");
+  if (!primary.startsWith("http://") && !primary.startsWith("https://")) {
+    candidates.push("");
+  }
 
   return Array.from(new Set(candidates));
 }
@@ -31,7 +38,7 @@ function buildCandidateBaseUrls() {
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const attempts: string[] = [];
-  for (const baseUrl of buildCandidateBaseUrls()) {
+  for (const baseUrl of buildCandidateBaseUrls(options.allowBaseFallback ?? true)) {
     const url = baseUrl ? `${baseUrl}${path}` : path;
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -114,7 +121,18 @@ export function fetchMarketBars(
   if (range?.end) {
     params.set("end", range.end);
   }
-  return request<MarketBarsResponse>(`/market/bars?${params.toString()}`);
+  const rangeStartMs = range?.start ? new Date(range.start).getTime() : NaN;
+  const rangeEndMs = range?.end ? new Date(range.end).getTime() : NaN;
+  const rangeDays =
+    Number.isFinite(rangeStartMs) && Number.isFinite(rangeEndMs)
+      ? Math.max(1, (rangeEndMs - rangeStartMs) / (24 * 60 * 60 * 1000))
+      : 30;
+  const timeoutMs = rangeDays > 2000 ? 120000 : rangeDays > 365 ? 90000 : 45000;
+
+  return request<MarketBarsResponse>(`/market/bars?${params.toString()}`, {
+    timeoutMs,
+    allowBaseFallback: false
+  });
 }
 
 export function fetchBacktest(symbol: string, timeframe: string) {
