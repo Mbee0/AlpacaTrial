@@ -1,10 +1,21 @@
 import { ScannerRow, Timeframe } from "@trader/shared";
 
+export type ScannerTab = "market" | "test" | "saved";
+
 interface ScannerTableProps {
   rows: ScannerRow[];
   selectedSymbol?: string;
   onSelectSymbol: (symbol: string) => void;
   loading: boolean;
+  activeTab: ScannerTab;
+  onActiveTabChange: (tab: ScannerTab) => void;
+  testSymbols: string[];
+  savedSymbols: string[];
+  testSymbolDraft: string;
+  onTestSymbolDraftChange: (value: string) => void;
+  onAddTestSymbol: () => void;
+  onRemoveTestSymbol: (symbol: string) => void;
+  onRemoveSavedSymbol: (symbol: string) => void;
   timeframe: Timeframe;
   timeframeOptions: Timeframe[];
   onTimeframeChange: (timeframe: Timeframe) => void;
@@ -37,11 +48,30 @@ function formatNumber(value: unknown, digits: number, fallback = "-"): string {
   return numeric.toFixed(digits);
 }
 
+function tabLabel(tab: ScannerTab) {
+  if (tab === "market") {
+    return "Market";
+  }
+  if (tab === "test") {
+    return "Test List";
+  }
+  return "Saved Tracks";
+}
+
 export function ScannerTable({
   rows,
   selectedSymbol,
   onSelectSymbol,
   loading,
+  activeTab,
+  onActiveTabChange,
+  testSymbols,
+  savedSymbols,
+  testSymbolDraft,
+  onTestSymbolDraftChange,
+  onAddTestSymbol,
+  onRemoveTestSymbol,
+  onRemoveSavedSymbol,
   timeframe,
   timeframeOptions,
   onTimeframeChange,
@@ -53,6 +83,7 @@ export function ScannerTable({
   onRefreshScanner
 }: ScannerTableProps) {
   const shouldShowSkeleton = loading && rows.length === 0;
+  const hasNoRows = !loading && rows.length === 0;
 
   return (
     <div className="panel scanner-panel">
@@ -62,6 +93,20 @@ export function ScannerTable({
           Ranked symbols with transparent scoring. Click any symbol to inspect trendlines and decision logic.
         </span>
       </h2>
+      <div className="scanner-tabs" role="tablist" aria-label="Scanner tracks">
+        {(["market", "test", "saved"] as ScannerTab[]).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab}
+            className={`scanner-tab ${activeTab === tab ? "active" : ""}`}
+            onClick={() => onActiveTabChange(tab)}
+          >
+            {tabLabel(tab)}
+          </button>
+        ))}
+      </div>
       <div className="scanner-toolbar">
         <div className="scanner-search">
           <input
@@ -107,6 +152,64 @@ export function ScannerTable({
             Refresh
           </button>
         </div>
+        {activeTab === "test" && (
+          <div className="track-editor">
+            <div className="track-editor-input">
+              <input
+                type="text"
+                value={testSymbolDraft}
+                placeholder="Add test symbol (e.g., JPM)"
+                onChange={(event) => onTestSymbolDraftChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    onAddTestSymbol();
+                  }
+                }}
+              />
+              <button type="button" onClick={onAddTestSymbol}>
+                Add
+              </button>
+            </div>
+            <div className="track-chip-list">
+              {testSymbols.length === 0 ? (
+                <span className="track-chip-empty">No test symbols yet.</span>
+              ) : (
+                testSymbols.map((symbol) => (
+                  <button
+                    key={`test-${symbol}`}
+                    type="button"
+                    className="track-chip"
+                    onClick={() => onRemoveTestSymbol(symbol)}
+                    title={`Remove ${symbol}`}
+                  >
+                    {symbol} ×
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+        {activeTab === "saved" && (
+          <div className="track-editor">
+            <div className="track-chip-list">
+              {savedSymbols.length === 0 ? (
+                <span className="track-chip-empty">No saved tracks yet. Use the star in Chart Inspection.</span>
+              ) : (
+                savedSymbols.map((symbol) => (
+                  <button
+                    key={`saved-${symbol}`}
+                    type="button"
+                    className="track-chip"
+                    onClick={() => onRemoveSavedSymbol(symbol)}
+                    title={`Remove ${symbol}`}
+                  >
+                    {symbol} ×
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
       <div className="table-wrap">
         <table>
@@ -135,24 +238,32 @@ export function ScannerTable({
                     ))}
                   </tr>
                 ))
-              : rows.map((row) => (
-                  <tr
-                    key={row.symbol}
-                    className={selectedSymbol === row.symbol ? "selected" : ""}
-                    onClick={() => onSelectSymbol(row.symbol)}
-                  >
-                    <td>{row.symbol}</td>
-                    <td>{formatNumber(row.lastPrice, 2)}</td>
-                    <td>{row.trendDirection}</td>
-                    <td>{formatNumber(row.actionLine, 2)}</td>
-                    <td>{formatNumber(row.safetyLine, 2)}</td>
-                    <td>{formatNumber(row.safetyLossLine, 2)}</td>
-                    <td>{formatNumber(row.score, 1)}</td>
-                    <td style={{ color: signalColor(row.signal), fontWeight: 700 }}>{row.signal}</td>
-                    <td>{formatNumber(row.confidence, 1)}</td>
-                    <td>{formatNumber(row.riskPerShare, 2)}</td>
+              : hasNoRows
+                ? (
+                  <tr>
+                    <td colSpan={10} className="scanner-empty-cell">
+                      No rows in {tabLabel(activeTab)}.
+                    </td>
                   </tr>
-                ))}
+                )
+                : rows.map((row) => (
+                    <tr
+                      key={row.symbol}
+                      className={selectedSymbol === row.symbol ? "selected" : ""}
+                      onClick={() => onSelectSymbol(row.symbol)}
+                    >
+                      <td>{row.symbol}</td>
+                      <td>{formatNumber(row.lastPrice, 2)}</td>
+                      <td>{row.trendDirection}</td>
+                      <td>{formatNumber(row.actionLine, 2)}</td>
+                      <td>{formatNumber(row.safetyLine, 2)}</td>
+                      <td>{formatNumber(row.safetyLossLine, 2)}</td>
+                      <td>{formatNumber(row.score, 1)}</td>
+                      <td style={{ color: signalColor(row.signal), fontWeight: 700 }}>{row.signal}</td>
+                      <td>{formatNumber(row.confidence, 1)}</td>
+                      <td>{formatNumber(row.riskPerShare, 2)}</td>
+                    </tr>
+                  ))}
           </tbody>
         </table>
       </div>

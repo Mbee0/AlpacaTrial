@@ -11,7 +11,7 @@ import {
 import { BacktestSummary } from "./components/BacktestSummary";
 import { HelpPage } from "./components/HelpPage";
 import { PortfolioPage } from "./components/PortfolioPage";
-import { ScannerTable } from "./components/ScannerTable";
+import { ScannerTable, type ScannerTab } from "./components/ScannerTable";
 import { SignalExplanation } from "./components/SignalExplanation";
 import { SymbolChart } from "./components/SymbolChart";
 import { BacktestResponse, PortfolioSummaryResponse, SymbolAnalysisResponse } from "./types";
@@ -201,6 +201,28 @@ function formatFixed(value: unknown, digits: number): string {
   return numberValue.toFixed(digits);
 }
 
+function scannerPlaceholderRow(symbol: string, timeframe: Timeframe): ScannerRow {
+  return {
+    symbol,
+    timeframe,
+    signal: "WATCH",
+    trendDirection: "SIDEWAYS",
+    score: Number.NaN,
+    confidence: Number.NaN,
+    explanation: ["Scanner result not available yet for this symbol/timeframe."],
+    breakdown: {
+      trendStrength: 0,
+      trendlineQuality: 0,
+      breakoutStrength: 0,
+      volumeConfirmation: 0,
+      multiTimeframeAlignment: 0,
+      volatilitySuitability: 0,
+      riskReward: 0
+    },
+    lastPrice: Number.NaN
+  };
+}
+
 function chartProgressFromStatus(message: string): number {
   const normalized = message.trim().toLowerCase();
   if (!normalized) {
@@ -268,8 +290,14 @@ export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>("dashboard");
   const [timeframe, setTimeframe] = useState<Timeframe>("1Hour");
   const [searchSymbol, setSearchSymbol] = useState("");
+  const [scannerActiveTab, setScannerActiveTab] = useState<ScannerTab>("market");
+  const [testSymbolDraft, setTestSymbolDraft] = useState("");
+  const [testSymbols, setTestSymbols] = useState<string[]>([]);
+  const [savedSymbols, setSavedSymbols] = useState<string[]>([]);
   const [safetyLossBufferPct, setSafetyLossBufferPct] = useState(1);
-  const [scannerRows, setScannerRows] = useState<ScannerRow[]>([]);
+  const [marketScannerRows, setMarketScannerRows] = useState<ScannerRow[]>([]);
+  const [testScannerRows, setTestScannerRows] = useState<ScannerRow[]>([]);
+  const [savedScannerRows, setSavedScannerRows] = useState<ScannerRow[]>([]);
   const [selectedSymbol, setSelectedSymbol] = useState<string>();
   const [chartBars, setChartBars] = useState<OhlcvBar[]>();
   const [chartRangePreset, setChartRangePreset] = useState<ChartRangePreset>("1M");
@@ -277,7 +305,9 @@ export default function App() {
   const [backtest, setBacktest] = useState<BacktestResponse>();
   const [portfolio, setPortfolio] = useState<PortfolioSummaryResponse>();
   const [portfolioError, setPortfolioError] = useState<string>();
-  const [scannerLoading, setScannerLoading] = useState(false);
+  const [marketScannerLoading, setMarketScannerLoading] = useState(false);
+  const [testScannerLoading, setTestScannerLoading] = useState(false);
+  const [savedScannerLoading, setSavedScannerLoading] = useState(false);
   const [chartBarsLoading, setChartBarsLoading] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
@@ -290,7 +320,7 @@ export default function App() {
   const [leftBottomPanePx, setLeftBottomPanePx] = useState(250);
   const [rightBottomPanePx, setRightBottomPanePx] = useState(230);
   const [dragMode, setDragMode] = useState<DragMode>(null);
-  const scannerCacheRef = useRef<Map<string, ScannerRow[]>>(new Map());
+  const marketScannerCacheRef = useRef<Map<string, ScannerRow[]>>(new Map());
   const chartBarsCacheRef = useRef<Map<string, OhlcvBar[]>>(new Map());
   const analysisCacheRef = useRef<Map<string, SymbolAnalysisResponse>>(new Map());
   const backtestCacheRef = useRef<Map<string, BacktestResponse>>(new Map());
@@ -300,10 +330,32 @@ export default function App() {
   const leftColumnRef = useRef<HTMLDivElement | null>(null);
   const rightColumnRef = useRef<HTMLDivElement | null>(null);
 
+  const scannerRowMap = useMemo(() => {
+    const map = new Map<string, ScannerRow>();
+    for (const row of [...marketScannerRows, ...testScannerRows, ...savedScannerRows]) {
+      map.set(row.symbol, row);
+    }
+    return map;
+  }, [marketScannerRows, testScannerRows, savedScannerRows]);
   const selectedSignal = useMemo(
-    () => scannerRows.find((row) => row.symbol === selectedSymbol),
-    [scannerRows, selectedSymbol]
+    () => (selectedSymbol ? scannerRowMap.get(selectedSymbol) : undefined),
+    [scannerRowMap, selectedSymbol]
   );
+  const activeScannerRows = useMemo(() => {
+    if (scannerActiveTab === "test") {
+      return testScannerRows;
+    }
+    if (scannerActiveTab === "saved") {
+      return savedScannerRows;
+    }
+    return marketScannerRows;
+  }, [scannerActiveTab, marketScannerRows, testScannerRows, savedScannerRows]);
+  const activeScannerLoading =
+    scannerActiveTab === "test"
+      ? testScannerLoading
+      : scannerActiveTab === "saved"
+        ? savedScannerLoading
+        : marketScannerLoading;
   const chartBarsTimeframe = useMemo(
     () => resolveChartBarsTimeframe(timeframe, chartRangePreset),
     [timeframe, chartRangePreset]
@@ -317,6 +369,7 @@ export default function App() {
     () => chartIntervalLabel(chartBarsTimeframe, chartAggregation),
     [chartBarsTimeframe, chartAggregation]
   );
+  const isSelectedSymbolSaved = Boolean(selectedSymbol && savedSymbols.includes(selectedSymbol));
 
   useEffect(() => {
     try {
@@ -329,7 +382,10 @@ export default function App() {
         timeframe?: Timeframe;
         selectedSymbol?: string;
         safetyLossBufferPct?: number;
-        scannerRows?: ScannerRow[];
+        marketScannerRows?: ScannerRow[];
+        scannerActiveTab?: ScannerTab;
+        testSymbols?: string[];
+        savedSymbols?: string[];
         leftPanePct?: number;
         leftBottomPanePx?: number;
         rightBottomPanePx?: number;
@@ -344,9 +400,18 @@ export default function App() {
       if (typeof parsed.safetyLossBufferPct === "number" && Number.isFinite(parsed.safetyLossBufferPct)) {
         setSafetyLossBufferPct(parsed.safetyLossBufferPct);
       }
-      if (Array.isArray(parsed.scannerRows) && parsed.scannerRows.length > 0) {
-        setScannerRows(parsed.scannerRows);
-        scannerCacheRef.current.set(parsed.timeframe ?? "1Hour", parsed.scannerRows);
+      if (parsed.scannerActiveTab === "market" || parsed.scannerActiveTab === "test" || parsed.scannerActiveTab === "saved") {
+        setScannerActiveTab(parsed.scannerActiveTab);
+      }
+      if (Array.isArray(parsed.testSymbols)) {
+        setTestSymbols(parsed.testSymbols.map((value) => value.trim().toUpperCase()).filter(Boolean));
+      }
+      if (Array.isArray(parsed.savedSymbols)) {
+        setSavedSymbols(parsed.savedSymbols.map((value) => value.trim().toUpperCase()).filter(Boolean));
+      }
+      if (Array.isArray(parsed.marketScannerRows) && parsed.marketScannerRows.length > 0) {
+        setMarketScannerRows(parsed.marketScannerRows);
+        marketScannerCacheRef.current.set(parsed.timeframe ?? "1Hour", parsed.marketScannerRows);
       }
       if (typeof parsed.leftPanePct === "number") {
         setLeftPanePct(parsed.leftPanePct);
@@ -367,7 +432,10 @@ export default function App() {
       timeframe,
       selectedSymbol,
       safetyLossBufferPct,
-      scannerRows: scannerRows.slice(0, 50),
+      scannerActiveTab,
+      testSymbols: testSymbols.slice(0, 80),
+      savedSymbols: savedSymbols.slice(0, 80),
+      marketScannerRows: marketScannerRows.slice(0, 50),
       leftPanePct,
       leftBottomPanePx,
       rightBottomPanePx
@@ -377,42 +445,91 @@ export default function App() {
     timeframe,
     selectedSymbol,
     safetyLossBufferPct,
-    scannerRows,
+    scannerActiveTab,
+    testSymbols,
+    savedSymbols,
+    marketScannerRows,
     leftPanePct,
     leftBottomPanePx,
     rightBottomPanePx
   ]);
 
   useEffect(() => {
-    const loadScanner = async () => {
+    let cancelled = false;
+    const loadScanners = async () => {
       const cacheKey = timeframe;
-      const cachedRows = scannerCacheRef.current.get(cacheKey);
-      if (cachedRows && cachedRows.length > 0 && refreshCounter === 0) {
-        setScannerRows(cachedRows);
-        if (!selectedSymbol) {
-          setSelectedSymbol(cachedRows[0].symbol);
-        }
+      const cachedMarketRows = marketScannerCacheRef.current.get(cacheKey);
+      if (cachedMarketRows && cachedMarketRows.length > 0 && refreshCounter === 0) {
+        setMarketScannerRows(cachedMarketRows);
+        setSelectedSymbol((current) => current ?? cachedMarketRows[0]?.symbol);
       }
 
-      setScannerLoading(true);
+      setMarketScannerLoading(true);
       try {
         const scanner = await fetchScanner(timeframe);
-        scannerCacheRef.current.set(cacheKey, scanner.rows);
-        setScannerRows(scanner.rows);
-        if (!selectedSymbol && scanner.rows.length > 0) {
-          setSelectedSymbol(scanner.rows[0].symbol);
+        if (cancelled) {
+          return;
         }
+        marketScannerCacheRef.current.set(cacheKey, scanner.rows);
+        setMarketScannerRows(scanner.rows);
+        setSelectedSymbol((current) => current ?? scanner.rows[0]?.symbol);
         setError(undefined);
       } catch (err) {
-        if (!cachedRows) {
+        if (!cachedMarketRows && !cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load scanner.");
         }
+      } finally {
+        if (!cancelled) {
+          setMarketScannerLoading(false);
+        }
       }
-      setScannerLoading(false);
+
+      const loadTrackedRows = async (
+        symbols: string[],
+        setRows: (rows: ScannerRow[]) => void,
+        setLoading: (value: boolean) => void,
+        tab: ScannerTab
+      ) => {
+        if (symbols.length === 0) {
+          setRows([]);
+          setLoading(false);
+          return;
+        }
+        setLoading(true);
+        try {
+          const scanner = await fetchScanner(timeframe, {
+            symbols,
+            limit: Math.max(symbols.length, 20)
+          });
+          if (cancelled) {
+            return;
+          }
+          const bySymbol = new Map(scanner.rows.map((row) => [row.symbol, row]));
+          setRows(symbols.map((symbol) => bySymbol.get(symbol) ?? scannerPlaceholderRow(symbol, timeframe)));
+          setError(undefined);
+        } catch (err) {
+          if (!cancelled) {
+            setRows(symbols.map((symbol) => scannerPlaceholderRow(symbol, timeframe)));
+            if (scannerActiveTab === tab) {
+              setError(err instanceof Error ? err.message : "Failed to load tracked symbols.");
+            }
+          }
+        } finally {
+          if (!cancelled) {
+            setLoading(false);
+          }
+        }
+      };
+
+      await loadTrackedRows(testSymbols, setTestScannerRows, setTestScannerLoading, "test");
+      await loadTrackedRows(savedSymbols, setSavedScannerRows, setSavedScannerLoading, "saved");
     };
 
-    loadScanner();
-  }, [timeframe, refreshCounter]);
+    void loadScanners();
+    return () => {
+      cancelled = true;
+    };
+  }, [timeframe, refreshCounter, testSymbols, savedSymbols, scannerActiveTab]);
 
   useEffect(() => {
     if (!selectedSymbol) {
@@ -607,6 +724,34 @@ export default function App() {
     handleSelectSymbol(searchSymbol);
   };
 
+  const handleAddTestSymbol = () => {
+    const symbol = testSymbolDraft.trim().toUpperCase();
+    if (!symbol) {
+      return;
+    }
+    setTestSymbols((current) => (current.includes(symbol) ? current : [symbol, ...current]));
+    setScannerActiveTab("test");
+    setTestSymbolDraft("");
+    handleSelectSymbol(symbol);
+  };
+
+  const handleRemoveTestSymbol = (symbol: string) => {
+    setTestSymbols((current) => current.filter((value) => value !== symbol));
+  };
+
+  const handleRemoveSavedSymbol = (symbol: string) => {
+    setSavedSymbols((current) => current.filter((value) => value !== symbol));
+  };
+
+  const handleToggleSavedTrack = () => {
+    if (!selectedSymbol) {
+      return;
+    }
+    setSavedSymbols((current) =>
+      current.includes(selectedSymbol) ? current.filter((value) => value !== selectedSymbol) : [selectedSymbol, ...current]
+    );
+  };
+
   useEffect(() => {
     if (!dragMode) {
       return;
@@ -717,10 +862,19 @@ export default function App() {
                 style={{ gridTemplateRows: `minmax(0, 1fr) ${SPLITTER_PX}px ${leftBottomPanePx}px` }}
               >
                 <ScannerTable
-                  rows={scannerRows}
+                  rows={activeScannerRows}
                   selectedSymbol={selectedSymbol}
                   onSelectSymbol={handleSelectSymbol}
-                  loading={scannerLoading}
+                  loading={activeScannerLoading}
+                  activeTab={scannerActiveTab}
+                  onActiveTabChange={setScannerActiveTab}
+                  testSymbols={testSymbols}
+                  savedSymbols={savedSymbols}
+                  testSymbolDraft={testSymbolDraft}
+                  onTestSymbolDraftChange={setTestSymbolDraft}
+                  onAddTestSymbol={handleAddTestSymbol}
+                  onRemoveTestSymbol={handleRemoveTestSymbol}
+                  onRemoveSavedSymbol={handleRemoveSavedSymbol}
                   timeframe={timeframe}
                   timeframeOptions={timeframeOptions}
                   onTimeframeChange={setTimeframe}
@@ -765,6 +919,15 @@ export default function App() {
                       </span>
                     </h2>
                     <div className="chart-panel-actions">
+                      <button
+                        type="button"
+                        className={`saved-track-toggle ${isSelectedSymbolSaved ? "active" : ""}`}
+                        disabled={!selectedSymbol}
+                        onClick={handleToggleSavedTrack}
+                        title={isSelectedSymbolSaved ? "Remove from saved tracks" : "Save to tracked symbols"}
+                      >
+                        {isSelectedSymbolSaved ? "★ Saved" : "☆ Save"}
+                      </button>
                       <button
                         type="button"
                         className="analysis-run-button"

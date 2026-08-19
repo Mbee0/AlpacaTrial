@@ -413,6 +413,26 @@ ul {
   margin-bottom: var(--ui-gap);
 }
 
+.scanner-tabs {
+  display: flex;
+  gap: 0.3rem;
+  margin-bottom: 0.35rem;
+}
+
+.scanner-tab {
+  min-height: 28px;
+  padding: 0.24rem 0.6rem;
+  font-size: 0.72rem;
+  border-radius: 999px;
+  background: #2b3c56;
+}
+
+.scanner-tab.active {
+  background: #3a567d;
+  border-color: #8fb6f5;
+  color: #f3f8ff;
+}
+
 .scanner-search {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -429,6 +449,43 @@ ul {
 .scanner-controls label {
   font-size: 0.72rem;
   color: var(--muted);
+}
+
+.track-editor {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.track-editor-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem;
+}
+
+.track-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.track-chip {
+  min-height: 26px;
+  padding: 0.18rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  background: #2f425f;
+}
+
+.track-chip-empty {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.scanner-empty-cell {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+  padding: 0.7rem;
 }
 
 .error {
@@ -545,6 +602,23 @@ ul {
   background: #2b4c77;
   border-color: #6f9add;
   color: #e8f3ff;
+}
+
+.saved-track-toggle {
+  background: #3f3652;
+  border-color: #8060b1;
+  color: #eadbff;
+}
+
+.saved-track-toggle.active {
+  background: #624689;
+  border-color: #b395e6;
+  color: #fff5c5;
+}
+
+.saved-track-toggle:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .analysis-run-button:hover:not(:disabled) {

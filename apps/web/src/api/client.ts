@@ -71,8 +71,21 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   throw new Error(`API request failed after trying ${attempts.length} base URL(s). ${attempts.join(" | ")}`);
 }
 
-export function fetchScanner(timeframe: string) {
-  return request<ScannerResponse>(`/analysis/scanner?timeframe=${timeframe}`);
+export function fetchScanner(
+  timeframe: string,
+  options?: {
+    symbols?: string[];
+    limit?: number;
+  }
+) {
+  const params = new URLSearchParams({ timeframe });
+  if (options?.symbols && options.symbols.length > 0) {
+    params.set("symbols", options.symbols.join(","));
+  }
+  if (typeof options?.limit === "number" && Number.isFinite(options.limit)) {
+    params.set("limit", String(Math.max(1, Math.floor(options.limit))));
+  }
+  return request<ScannerResponse>(`/analysis/scanner?${params.toString()}`);
 }
 
 export function fetchSymbolAnalysis(symbol: string, timeframe: string, safetyLossBufferPct: number) {
