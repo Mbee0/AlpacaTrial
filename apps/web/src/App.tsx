@@ -20,10 +20,12 @@ import "./styles.css";
 const timeframeOptions: Timeframe[] = ["1Day", "4Hour", "1Hour", "15Min"];
 type ViewMode = "dashboard" | "portfolio" | "help";
 type DragMode = "vertical" | "left-horizontal" | "right-horizontal" | null;
+type ChartRangePreset = "1H" | "1D" | "1M" | "6M" | "1Y" | "YTD";
 const APP_STATE_KEY = "trader-ui-state-v1";
 const SPLITTER_PX = 4;
 const MIN_BOTTOM_PANE_PX = 150;
 const MAX_BOTTOM_PANE_PX = 460;
+const chartRangePresets: ChartRangePreset[] = ["1H", "1D", "1M", "6M", "1Y", "YTD"];
 
 function buildQuickRange(timeframe: Timeframe) {
   const end = new Date();
@@ -47,6 +49,49 @@ function formatFixed(value: unknown, digits: number): string {
     return "—";
   }
   return numberValue.toFixed(digits);
+}
+
+function filterBarsByRangePreset(sourceBars: OhlcvBar[] | undefined, preset: ChartRangePreset): OhlcvBar[] {
+  if (!sourceBars || sourceBars.length === 0) {
+    return [];
+  }
+
+  const sortedBars = [...sourceBars].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
+  const lastBarMs = new Date(sortedBars[sortedBars.length - 1].timestamp).getTime();
+  if (!Number.isFinite(lastBarMs)) {
+    return sortedBars;
+  }
+
+  let startMs = lastBarMs;
+  if (preset === "1H") {
+    startMs = lastBarMs - 60 * 60 * 1000;
+  } else if (preset === "1D") {
+    startMs = lastBarMs - 24 * 60 * 60 * 1000;
+  } else if (preset === "1M") {
+    const start = new Date(lastBarMs);
+    start.setMonth(start.getMonth() - 1);
+    startMs = start.getTime();
+  } else if (preset === "6M") {
+    const start = new Date(lastBarMs);
+    start.setMonth(start.getMonth() - 6);
+    startMs = start.getTime();
+  } else if (preset === "1Y") {
+    const start = new Date(lastBarMs);
+    start.setFullYear(start.getFullYear() - 1);
+    startMs = start.getTime();
+  } else if (preset === "YTD") {
+    const end = new Date(lastBarMs);
+    const start = new Date(Date.UTC(end.getUTCFullYear(), 0, 1, 0, 0, 0, 0));
+    startMs = start.getTime();
+  }
+
+  const filteredBars = sortedBars.filter((bar) => {
+    const ms = new Date(bar.timestamp).getTime();
+    return Number.isFinite(ms) && ms >= startMs;
+  });
+  return filteredBars.length > 0 ? filteredBars : sortedBars;
 }
 
 function chartProgressFromStatus(message: string): number {
@@ -120,6 +165,7 @@ export default function App() {
   const [scannerRows, setScannerRows] = useState<ScannerRow[]>([]);
   const [selectedSymbol, setSelectedSymbol] = useState<string>();
   const [chartBars, setChartBars] = useState<OhlcvBar[]>();
+  const [chartRangePreset, setChartRangePreset] = useState<ChartRangePreset>("1M");
   const [analysis, setAnalysis] = useState<SymbolAnalysisResponse>();
   const [backtest, setBacktest] = useState<BacktestResponse>();
   const [portfolio, setPortfolio] = useState<PortfolioSummaryResponse>();
@@ -149,6 +195,10 @@ export default function App() {
   const selectedSignal = useMemo(
     () => scannerRows.find((row) => row.symbol === selectedSymbol),
     [scannerRows, selectedSymbol]
+  );
+  const visibleChartBars = useMemo(
+    () => filterBarsByRangePreset(chartBars, chartRangePreset),
+    [chartBars, chartRangePreset]
   );
 
   useEffect(() => {
@@ -612,6 +662,22 @@ export default function App() {
                       )}
                     </div>
                   </div>
+                  <div className="chart-range-row" role="tablist" aria-label="Chart time range">
+                    <span className="chart-range-label">Range</span>
+                    {chartRangePresets.map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        role="tab"
+                        aria-selected={chartRangePreset === preset}
+                        className={`chart-range-chip ${chartRangePreset === preset ? "active" : ""}`}
+                        onClick={() => setChartRangePreset(preset)}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                    <span className="chart-range-interval">Bar interval: {timeframe}</span>
+                  </div>
                   {(chartBarsLoading || detailsLoading) && (
                     <div className="chart-inline-status" aria-live="polite">
                       <div
@@ -656,7 +722,11 @@ export default function App() {
                         <p className="muted">Select a symbol to load chart history.</p>
                       </div>
                     ) : (
-                      <SymbolChart analysis={analysis} bars={chartBars} backtestTrades={backtest?.tradeList} />
+                      <SymbolChart
+                        analysis={analysis}
+                        bars={visibleChartBars.length > 0 ? visibleChartBars : chartBars}
+                        backtestTrades={backtest?.tradeList}
+                      />
                     )}
                   </div>
                 </div>

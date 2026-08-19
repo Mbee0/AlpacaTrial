@@ -156,7 +156,7 @@ export function SymbolChart({ analysis, bars, backtestTrades }: SymbolChartProps
       return;
     }
     try {
-      const sourceBars = analysis?.bars ?? bars ?? [];
+      const sourceBars = bars ?? analysis?.bars ?? [];
 
       clearChartSeries(chart);
 

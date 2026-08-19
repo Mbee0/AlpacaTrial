@@ -503,6 +503,38 @@ ul {
   flex-wrap: wrap;
 }
 
+.chart-range-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.45rem;
+}
+
+.chart-range-label,
+.chart-range-interval {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.chart-range-chip {
+  min-height: 28px;
+  padding: 0.22rem 0.5rem;
+  font-size: 0.72rem;
+  border-radius: 999px;
+  background: #2d3f59;
+}
+
+.chart-range-chip.active {
+  border-color: #8fb6f5;
+  background: #3a557b;
+  color: #f1f7ff;
+}
+
+.chart-range-interval {
+  margin-left: auto;
+}
+
 .analysis-run-button {
   background: #2b4c77;
   border-color: #6f9add;
