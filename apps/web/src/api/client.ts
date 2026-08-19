@@ -100,8 +100,27 @@ export function fetchSymbolAnalysis(symbol: string, timeframe: string, safetyLos
   );
 }
 
+function fastChartLookbackDays(timeframe: string) {
+  if (timeframe === "1Day") {
+    return 180;
+  }
+  if (timeframe === "4Hour") {
+    return 75;
+  }
+  if (timeframe === "1Hour") {
+    return 35;
+  }
+  return 12;
+}
+
 export function fetchMarketBars(symbol: string, timeframe: string) {
-  return request<MarketBarsResponse>(`/market/bars?symbol=${symbol}&timeframe=${timeframe}`);
+  const end = new Date();
+  const start = new Date(end);
+  start.setDate(end.getDate() - fastChartLookbackDays(timeframe));
+  return request<MarketBarsResponse>(
+    `/market/bars?symbol=${symbol}&timeframe=${timeframe}&start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`,
+    12000
+  );
 }
 
 export interface AnalysisStatusResponse {
