@@ -28,6 +28,13 @@ body,
   box-sizing: border-box;
 }
 
+:root {
+  --scrollbar-size: 8px;
+  --scrollbar-track: rgba(31, 45, 67, 0.45);
+  --scrollbar-thumb: rgba(145, 169, 210, 0.45);
+  --scrollbar-thumb-hover: rgba(169, 193, 235, 0.65);
+}
+
 body {
   margin: 0;
   background: linear-gradient(180deg, #1d2a3f 0%, #1a2638 100%);
@@ -276,6 +283,8 @@ button:hover {
   overflow: auto;
   border-radius: var(--ui-radius);
   border: 1px solid var(--line);
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
 table {
@@ -317,6 +326,8 @@ ul {
   display: grid;
   gap: 0.3rem;
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
 .score-grid {
@@ -465,6 +476,8 @@ ul {
 .signal-panel {
   min-height: 0;
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
 .chart-panel {
@@ -597,6 +610,8 @@ body.is-dragging .splitter-horizontal {
 .backtest-panel {
   min-height: 0;
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
 .portfolio-page {
@@ -631,6 +646,39 @@ body.is-dragging .splitter-horizontal {
 
 .help-page tr:hover {
   background: transparent;
+}
+
+.table-wrap::-webkit-scrollbar,
+ul::-webkit-scrollbar,
+.signal-panel::-webkit-scrollbar,
+.backtest-panel::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+.table-wrap::-webkit-scrollbar-track,
+ul::-webkit-scrollbar-track,
+.signal-panel::-webkit-scrollbar-track,
+.backtest-panel::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+.table-wrap::-webkit-scrollbar-thumb,
+ul::-webkit-scrollbar-thumb,
+.signal-panel::-webkit-scrollbar-thumb,
+.backtest-panel::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.table-wrap::-webkit-scrollbar-thumb:hover,
+ul::-webkit-scrollbar-thumb:hover,
+.signal-panel::-webkit-scrollbar-thumb:hover,
+.backtest-panel::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
 }
 
 @media (max-width: 1400px) {
