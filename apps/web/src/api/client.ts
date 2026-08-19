@@ -32,7 +32,7 @@ async function request<T>(path: string, timeoutMs = 30000): Promise<T> {
 }
 
 export function fetchScanner(timeframe: string) {
-  return request<ScannerResponse>(`/analysis/scanner?timeframe=${timeframe}&limit=4`);
+  return request<ScannerResponse>(`/analysis/scanner?timeframe=${timeframe}&limit=8`);
 }
 
 export function fetchSymbolAnalysis(symbol: string, timeframe: string, safetyLossBufferPct: number) {
@@ -67,8 +67,7 @@ export function fetchSymbolAnalysisWithRequestId(
   requestId: string
 ) {
   return request<SymbolAnalysisResponse>(
-    `/analysis/symbol/${symbol}?timeframe=${timeframe}&safetyLossBufferPct=${safetyLossBufferPct}&requestId=${encodeURIComponent(requestId)}`,
-    60000
+    `/analysis/symbol/${symbol}?timeframe=${timeframe}&safetyLossBufferPct=${safetyLossBufferPct}&requestId=${encodeURIComponent(requestId)}`
   );
 }
 

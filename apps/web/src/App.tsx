@@ -124,10 +124,10 @@ function TaskbarIcon({ viewMode }: { viewMode: ViewMode }) {
 export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>("dashboard");
   const [timeframe, setTimeframe] = useState<Timeframe>("1Hour");
-  const [searchSymbol, setSearchSymbol] = useState("AAPL");
+  const [searchSymbol, setSearchSymbol] = useState("");
   const [safetyLossBufferPct, setSafetyLossBufferPct] = useState(1);
   const [scannerRows, setScannerRows] = useState<ScannerRow[]>([]);
-  const [selectedSymbol, setSelectedSymbol] = useState<string>("AAPL");
+  const [selectedSymbol, setSelectedSymbol] = useState<string>();
   const [analysis, setAnalysis] = useState<SymbolAnalysisResponse>();
   const [backtest, setBacktest] = useState<BacktestResponse>();
   const [portfolio, setPortfolio] = useState<PortfolioSummaryResponse>();
@@ -135,7 +135,6 @@ export default function App() {
   const [scannerLoading, setScannerLoading] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
-  const [chartBootstrapComplete, setChartBootstrapComplete] = useState(false);
   const [chartStatusMessage, setChartStatusMessage] = useState("Preparing chart analysis...");
   const [chartStatusTrail, setChartStatusTrail] = useState<string[]>([]);
   const [chartStatusProgress, setChartStatusProgress] = useState(8);
@@ -227,10 +226,6 @@ export default function App() {
     const loadScanner = async () => {
       const cacheKey = timeframe;
       const cachedRows = scannerCacheRef.current.get(cacheKey);
-      const hasCachedRows = Boolean(cachedRows && cachedRows.length > 0);
-      if (!chartBootstrapComplete && !hasCachedRows && refreshCounter === 0) {
-        return;
-      }
       if (cachedRows && cachedRows.length > 0 && refreshCounter === 0) {
         setScannerRows(cachedRows);
         if (!selectedSymbol) {
@@ -256,7 +251,7 @@ export default function App() {
     };
 
     loadScanner();
-  }, [timeframe, refreshCounter, chartBootstrapComplete]);
+  }, [timeframe, refreshCounter]);
 
   useEffect(() => {
     if (!selectedSymbol) {
@@ -382,7 +377,6 @@ export default function App() {
       }
       if (requestId === detailRequestIdRef.current) {
         setDetailsLoading(false);
-        setChartBootstrapComplete(true);
       }
     };
 
