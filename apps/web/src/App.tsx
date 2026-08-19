@@ -20,12 +20,12 @@ import "./styles.css";
 const timeframeOptions: Timeframe[] = ["1Day", "4Hour", "1Hour", "15Min"];
 type ViewMode = "dashboard" | "portfolio" | "help";
 type DragMode = "vertical" | "left-horizontal" | "right-horizontal" | null;
-type ChartRangePreset = "1H" | "1D" | "1M" | "6M" | "1Y" | "YTD";
+type ChartRangePreset = "1H" | "1D" | "1M" | "6M" | "1Y" | "5Y" | "10Y" | "YTD" | "ALL";
 const APP_STATE_KEY = "trader-ui-state-v1";
 const SPLITTER_PX = 4;
 const MIN_BOTTOM_PANE_PX = 150;
 const MAX_BOTTOM_PANE_PX = 460;
-const chartRangePresets: ChartRangePreset[] = ["1H", "1D", "1M", "6M", "1Y", "YTD"];
+const chartRangePresets: ChartRangePreset[] = ["1H", "1D", "1M", "6M", "1Y", "5Y", "10Y", "YTD", "ALL"];
 
 function buildQuickRange(timeframe: Timeframe) {
   const end = new Date();
@@ -59,6 +59,9 @@ function filterBarsByRangePreset(sourceBars: OhlcvBar[] | undefined, preset: Cha
   const sortedBars = [...sourceBars].sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
+  if (preset === "ALL") {
+    return sortedBars;
+  }
   const lastBarMs = new Date(sortedBars[sortedBars.length - 1].timestamp).getTime();
   if (!Number.isFinite(lastBarMs)) {
     return sortedBars;
@@ -80,6 +83,14 @@ function filterBarsByRangePreset(sourceBars: OhlcvBar[] | undefined, preset: Cha
   } else if (preset === "1Y") {
     const start = new Date(lastBarMs);
     start.setFullYear(start.getFullYear() - 1);
+    startMs = start.getTime();
+  } else if (preset === "5Y") {
+    const start = new Date(lastBarMs);
+    start.setFullYear(start.getFullYear() - 5);
+    startMs = start.getTime();
+  } else if (preset === "10Y") {
+    const start = new Date(lastBarMs);
+    start.setFullYear(start.getFullYear() - 10);
     startMs = start.getTime();
   } else if (preset === "YTD") {
     const end = new Date(lastBarMs);
