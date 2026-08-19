@@ -29,6 +29,10 @@ function signalColor(signal: ScannerRow["signal"]) {
   }
 }
 
+function formatNumber(value: unknown, digits = 2, fallback = "-") {
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits) : fallback;
+}
+
 export function ScannerTable({
   rows,
   selectedSymbol,
@@ -134,15 +138,15 @@ export function ScannerTable({
                     onClick={() => onSelectSymbol(row.symbol)}
                   >
                     <td>{row.symbol}</td>
-                    <td>{row.lastPrice.toFixed(2)}</td>
+                    <td>{formatNumber(row.lastPrice)}</td>
                     <td>{row.trendDirection}</td>
-                    <td>{row.actionLine?.toFixed(2) ?? "-"}</td>
-                    <td>{row.safetyLine?.toFixed(2) ?? "-"}</td>
-                    <td>{row.safetyLossLine?.toFixed(2) ?? "-"}</td>
-                    <td>{row.score.toFixed(1)}</td>
+                    <td>{formatNumber(row.actionLine)}</td>
+                    <td>{formatNumber(row.safetyLine)}</td>
+                    <td>{formatNumber(row.safetyLossLine)}</td>
+                    <td>{formatNumber(row.score, 1)}</td>
                     <td style={{ color: signalColor(row.signal), fontWeight: 700 }}>{row.signal}</td>
-                    <td>{row.confidence.toFixed(1)}</td>
-                    <td>{row.riskPerShare?.toFixed(2) ?? "-"}</td>
+                    <td>{formatNumber(row.confidence, 1)}</td>
+                    <td>{formatNumber(row.riskPerShare)}</td>
                   </tr>
                 ))}
           </tbody>

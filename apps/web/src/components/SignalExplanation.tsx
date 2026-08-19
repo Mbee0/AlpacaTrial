@@ -26,6 +26,15 @@ export function SignalExplanation({ signal, loading = false }: SignalExplanation
     );
   }
 
+  const explanationLines = Array.isArray(signal.explanation)
+    ? signal.explanation
+    : ["Signal explanation unavailable for this cached row."];
+  const scoreBreakdownEntries = signal.breakdown ? Object.entries(signal.breakdown) : [];
+  const safetyLoss =
+    typeof signal.safetyLossLine === "number" && Number.isFinite(signal.safetyLossLine)
+      ? signal.safetyLossLine
+      : undefined;
+
   return (
     <div className="panel signal-panel">
       <h2 className="title-with-hint">
@@ -33,19 +42,26 @@ export function SignalExplanation({ signal, loading = false }: SignalExplanation
         <span className="title-hint">Every signal is transparent, with line context and scoring details.</span>
       </h2>
       <ul>
-        {signal.explanation.map((line, index) => (
+        {explanationLines.map((line, index) => (
           <li key={`${line}-${index}`}>{line}</li>
         ))}
-        {signal.safetyLossLine && <li>Safety-loss line: {signal.safetyLossLine.toFixed(2)}.</li>}
+        {safetyLoss !== undefined && <li>Safety-loss line: {safetyLoss.toFixed(2)}.</li>}
       </ul>
 
       <div className="score-grid">
-        {Object.entries(signal.breakdown).map(([key, value]) => (
-          <div key={key} className="score-card">
-            <strong>{key}</strong>
-            <span>{value.toFixed(1)}</span>
-          </div>
-        ))}
+        {scoreBreakdownEntries.length === 0 ? (
+          <p className="muted">Score breakdown unavailable for this cached row.</p>
+        ) : (
+          scoreBreakdownEntries.map(([key, value]) => {
+            const formattedValue = typeof value === "number" && Number.isFinite(value) ? value.toFixed(1) : "-";
+            return (
+              <div key={key} className="score-card">
+                <strong>{key}</strong>
+                <span>{formattedValue}</span>
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
