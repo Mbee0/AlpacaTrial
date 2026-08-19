@@ -196,7 +196,7 @@ button:hover {
 .left-column,
 .right-column {
   display: grid;
-  gap: 0.55rem;
+  gap: 0;
   min-height: 0;
   overflow: hidden;
 }
@@ -357,39 +357,6 @@ ul {
   gap: 0.2rem;
 }
 
-.layout-controls {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.6rem;
-  align-items: center;
-}
-
-.layout-control {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 0.4rem;
-  align-items: center;
-}
-
-.layout-control label {
-  font-size: 0.72rem;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.layout-control input[type="range"] {
-  min-width: 120px;
-  background: transparent;
-  border: none;
-  padding: 0;
-  min-height: auto;
-}
-
-.layout-control span {
-  font-size: 0.72rem;
-  color: #dce9ff;
-}
-
 .overview-card span {
   font-size: 0.74rem;
   color: var(--muted);
@@ -416,6 +383,45 @@ ul {
   flex: 1;
   min-height: 320px;
   width: 100%;
+}
+
+.splitter {
+  position: relative;
+  background: transparent;
+}
+
+.splitter::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(138, 166, 209, 0.28);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.splitter:hover::before,
+.splitter.active::before {
+  opacity: 1;
+}
+
+.splitter-vertical {
+  cursor: col-resize;
+}
+
+.splitter-horizontal {
+  cursor: row-resize;
+}
+
+body.is-dragging {
+  user-select: none;
+}
+
+body.is-dragging .splitter-vertical {
+  cursor: col-resize;
+}
+
+body.is-dragging .splitter-horizontal {
+  cursor: row-resize;
 }
 
 .backtest-panel {
@@ -470,13 +476,6 @@ ul {
     display: none;
   }
 
-  .layout-controls {
-    grid-template-columns: 1fr;
-  }
-
-  .layout-control {
-    grid-template-columns: 120px 1fr 42px;
-  }
 }
 
 @media (max-width: 1100px) {
@@ -532,7 +531,7 @@ ul {
   }
 
   .layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
     overflow: visible;
   }
 
@@ -547,6 +546,10 @@ ul {
     min-height: 420px;
   }
 
+  .splitter {
+    display: none;
+  }
+
   .signal-panel,
   .backtest-panel {
     max-height: none;
@@ -554,15 +557,6 @@ ul {
 
   .scanner-controls {
     grid-template-columns: 1fr;
-  }
-
-  .layout-controls {
-    grid-template-columns: 1fr;
-  }
-
-  .layout-control {
-    grid-template-columns: 1fr;
-    gap: 0.25rem;
   }
 
   .portfolio-page {

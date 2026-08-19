@@ -17,6 +17,7 @@ import "./styles.css";
 
 const timeframeOptions: Timeframe[] = ["1Day", "4Hour", "1Hour", "15Min"];
 type ViewMode = "dashboard" | "portfolio" | "help";
+type DragMode = "vertical" | "left-horizontal" | "right-horizontal" | null;
 const APP_STATE_KEY = "trader-ui-state-v1";
 
 function TaskbarIcon({ viewMode }: { viewMode: ViewMode }) {
@@ -68,10 +69,14 @@ export default function App() {
   const [leftPanePct, setLeftPanePct] = useState(38);
   const [leftTopPanePct, setLeftTopPanePct] = useState(62);
   const [rightTopPanePct, setRightTopPanePct] = useState(70);
+  const [dragMode, setDragMode] = useState<DragMode>(null);
   const scannerCacheRef = useRef<Map<string, ScannerRow[]>>(new Map());
   const analysisCacheRef = useRef<Map<string, SymbolAnalysisResponse>>(new Map());
   const backtestCacheRef = useRef<Map<string, BacktestResponse>>(new Map());
   const detailRequestIdRef = useRef(0);
+  const layoutRef = useRef<HTMLElement | null>(null);
+  const leftColumnRef = useRef<HTMLDivElement | null>(null);
+  const rightColumnRef = useRef<HTMLDivElement | null>(null);
 
   const selectedSignal = useMemo(
     () => scannerRows.find((row) => row.symbol === selectedSymbol),
@@ -249,6 +254,42 @@ export default function App() {
     handleSelectSymbol(searchSymbol);
   };
 
+  useEffect(() => {
+    if (!dragMode) {
+      return;
+    }
+
+    const onMouseMove = (event: MouseEvent) => {
+      if (dragMode === "vertical" && layoutRef.current) {
+        const rect = layoutRef.current.getBoundingClientRect();
+        const next = ((event.clientX - rect.left) / rect.width) * 100;
+        setLeftPanePct(Math.max(24, Math.min(62, next)));
+      } else if (dragMode === "left-horizontal" && leftColumnRef.current) {
+        const rect = leftColumnRef.current.getBoundingClientRect();
+        const next = ((event.clientY - rect.top) / rect.height) * 100;
+        setLeftTopPanePct(Math.max(32, Math.min(82, next)));
+      } else if (dragMode === "right-horizontal" && rightColumnRef.current) {
+        const rect = rightColumnRef.current.getBoundingClientRect();
+        const next = ((event.clientY - rect.top) / rect.height) * 100;
+        setRightTopPanePct(Math.max(38, Math.min(88, next)));
+      }
+    };
+
+    const onMouseUp = () => {
+      setDragMode(null);
+      document.body.classList.remove("is-dragging");
+    };
+
+    document.body.classList.add("is-dragging");
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      document.body.classList.remove("is-dragging");
+    };
+  }, [dragMode]);
+
   return (
     <main className="app app-shell">
       <aside className="taskbar">
@@ -287,47 +328,6 @@ export default function App() {
           <>
             {error && <div className="error">{error}</div>}
             {loading && <div className="loading">Loading analysis...</div>}
-            <section className="layout-controls panel">
-              <div className="layout-control">
-                <label htmlFor="left-pane">Scanner Width</label>
-                <input
-                  id="left-pane"
-                  type="range"
-                  min={28}
-                  max={55}
-                  step={1}
-                  value={leftPanePct}
-                  onChange={(event) => setLeftPanePct(Number(event.target.value))}
-                />
-                <span>{leftPanePct}%</span>
-              </div>
-              <div className="layout-control">
-                <label htmlFor="left-top">Scanner / Reasoning Split</label>
-                <input
-                  id="left-top"
-                  type="range"
-                  min={45}
-                  max={78}
-                  step={1}
-                  value={leftTopPanePct}
-                  onChange={(event) => setLeftTopPanePct(Number(event.target.value))}
-                />
-                <span>{leftTopPanePct}%</span>
-              </div>
-              <div className="layout-control">
-                <label htmlFor="right-top">Chart / Backtest Split</label>
-                <input
-                  id="right-top"
-                  type="range"
-                  min={50}
-                  max={85}
-                  step={1}
-                  value={rightTopPanePct}
-                  onChange={(event) => setRightTopPanePct(Number(event.target.value))}
-                />
-                <span>{rightTopPanePct}%</span>
-              </div>
-            </section>
             <section className="overview-strip">
               <article className="overview-card">
                 <span>Trend</span>
@@ -354,8 +354,16 @@ export default function App() {
                 <strong>{selectedSignal ? `${selectedSignal.confidence.toFixed(1)}%` : "—"}</strong>
               </article>
             </section>
-            <section className="layout" style={{ gridTemplateColumns: `${leftPanePct}% minmax(0, 1fr)` }}>
-              <div className="left-column" style={{ gridTemplateRows: `${leftTopPanePct}% minmax(0, 1fr)` }}>
+            <section
+              className="layout"
+              ref={layoutRef}
+              style={{ gridTemplateColumns: `${leftPanePct}% 6px minmax(0, 1fr)` }}
+            >
+              <div
+                className="left-column"
+                ref={leftColumnRef}
+                style={{ gridTemplateRows: `${leftTopPanePct}% 6px minmax(0, 1fr)` }}
+              >
                 <ScannerTable
                   rows={scannerRows}
                   selectedSymbol={selectedSymbol}
@@ -370,9 +378,27 @@ export default function App() {
                   onSafetyLossBufferPctChange={setSafetyLossBufferPct}
                   onRefreshScanner={() => setRefreshCounter((value) => value + 1)}
                 />
+                <div
+                  className={`splitter splitter-horizontal ${dragMode === "left-horizontal" ? "active" : ""}`}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    setDragMode("left-horizontal");
+                  }}
+                />
                 <SignalExplanation signal={selectedSignal} />
               </div>
-              <div className="right-column" style={{ gridTemplateRows: `${rightTopPanePct}% minmax(0, 1fr)` }}>
+              <div
+                className={`splitter splitter-vertical ${dragMode === "vertical" ? "active" : ""}`}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  setDragMode("vertical");
+                }}
+              />
+              <div
+                className="right-column"
+                ref={rightColumnRef}
+                style={{ gridTemplateRows: `${rightTopPanePct}% 6px minmax(0, 1fr)` }}
+              >
                 <div className="panel chart-panel">
                   <h2>{selectedSymbol ? `${selectedSymbol} Chart Inspection` : "Chart Inspection"}</h2>
                   <p className="muted">
@@ -382,6 +408,13 @@ export default function App() {
                     <SymbolChart analysis={analysis} backtestTrades={backtest?.tradeList} />
                   </div>
                 </div>
+                <div
+                  className={`splitter splitter-horizontal ${dragMode === "right-horizontal" ? "active" : ""}`}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    setDragMode("right-horizontal");
+                  }}
+                />
                 <BacktestSummary backtest={backtest} />
               </div>
             </section>
