@@ -18,13 +18,7 @@ import "./styles.css";
 
 const timeframeOptions: Timeframe[] = ["1Day", "4Hour", "1Hour", "15Min"];
 type ViewMode = "dashboard" | "portfolio" | "help";
-type DragMode =
-  | "vertical"
-  | "left-horizontal"
-  | "right-horizontal"
-  | "left-corner"
-  | "right-corner"
-  | null;
+type DragMode = "vertical" | "left-horizontal" | "right-horizontal" | null;
 const APP_STATE_KEY = "trader-ui-state-v1";
 const SPLITTER_PX = 4;
 const MIN_BOTTOM_PANE_PX = 150;
@@ -327,20 +321,15 @@ export default function App() {
     }
 
     const onMouseMove = (event: MouseEvent) => {
-      if (
-        (dragMode === "vertical" || dragMode === "left-corner" || dragMode === "right-corner") &&
-        layoutRef.current
-      ) {
+      if (dragMode === "vertical" && layoutRef.current) {
         const rect = layoutRef.current.getBoundingClientRect();
         const next = ((event.clientX - rect.left) / rect.width) * 100;
         setLeftPanePct(Math.max(24, Math.min(62, next)));
-      }
-      if ((dragMode === "left-horizontal" || dragMode === "left-corner") && leftColumnRef.current) {
+      } else if (dragMode === "left-horizontal" && leftColumnRef.current) {
         const rect = leftColumnRef.current.getBoundingClientRect();
         const nextBottom = rect.bottom - event.clientY - SPLITTER_PX / 2;
         setLeftBottomPanePx(Math.max(MIN_BOTTOM_PANE_PX, Math.min(MAX_BOTTOM_PANE_PX, nextBottom)));
-      }
-      if ((dragMode === "right-horizontal" || dragMode === "right-corner") && rightColumnRef.current) {
+      } else if (dragMode === "right-horizontal" && rightColumnRef.current) {
         const rect = rightColumnRef.current.getBoundingClientRect();
         const nextBottom = rect.bottom - event.clientY - SPLITTER_PX / 2;
         setRightBottomPanePx(Math.max(MIN_BOTTOM_PANE_PX, Math.min(MAX_BOTTOM_PANE_PX, nextBottom)));
@@ -451,34 +440,16 @@ export default function App() {
                   onRefreshScanner={() => setRefreshCounter((value) => value + 1)}
                 />
                 <div
-                  className={`splitter splitter-horizontal ${
-                    dragMode === "left-horizontal" || dragMode === "left-corner" ? "active" : ""
-                  }`}
+                  className={`splitter splitter-horizontal ${dragMode === "left-horizontal" ? "active" : ""}`}
                   onMouseDown={(event) => {
                     event.preventDefault();
                     setDragMode("left-horizontal");
                   }}
-                >
-                  <div
-                    className={`splitter-corner-handle splitter-corner-left ${
-                      dragMode === "left-corner" ? "active" : ""
-                    }`}
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setDragMode("left-corner");
-                    }}
-                    title="Drag corner to resize both panes"
-                  />
-                </div>
+                />
                 <SignalExplanation signal={selectedSignal} loading={detailsLoading && !selectedSignal} />
               </div>
               <div
-                className={`splitter splitter-vertical ${
-                  dragMode === "vertical" || dragMode === "left-corner" || dragMode === "right-corner"
-                    ? "active"
-                    : ""
-                }`}
+                className={`splitter splitter-vertical ${dragMode === "vertical" ? "active" : ""}`}
                 onMouseDown={(event) => {
                   event.preventDefault();
                   setDragMode("vertical");
@@ -521,26 +492,12 @@ export default function App() {
                   </div>
                 </div>
                 <div
-                  className={`splitter splitter-horizontal ${
-                    dragMode === "right-horizontal" || dragMode === "right-corner" ? "active" : ""
-                  }`}
+                  className={`splitter splitter-horizontal ${dragMode === "right-horizontal" ? "active" : ""}`}
                   onMouseDown={(event) => {
                     event.preventDefault();
                     setDragMode("right-horizontal");
                   }}
-                >
-                  <div
-                    className={`splitter-corner-handle splitter-corner-right ${
-                      dragMode === "right-corner" ? "active" : ""
-                    }`}
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setDragMode("right-corner");
-                    }}
-                    title="Drag corner to resize both panes"
-                  />
-                </div>
+                />
                 <BacktestSummary backtest={backtest} loading={detailsLoading && !backtest} />
               </div>
             </section>

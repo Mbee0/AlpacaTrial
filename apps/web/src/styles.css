@@ -609,33 +609,6 @@ ul {
   cursor: row-resize;
 }
 
-.splitter-corner-handle {
-  position: absolute;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  border: 1px solid rgba(171, 197, 236, 0.65);
-  border-radius: 2px;
-  background: rgba(141, 171, 222, 0.42);
-  transform: translateY(-50%);
-  cursor: move;
-  transition: background-color 120ms ease, border-color 120ms ease;
-}
-
-.splitter-corner-handle:hover,
-.splitter-corner-handle.active {
-  background: rgba(171, 200, 242, 0.72);
-  border-color: rgba(199, 220, 255, 0.95);
-}
-
-.splitter-corner-left {
-  right: -4px;
-}
-
-.splitter-corner-right {
-  left: -4px;
-}
-
 body.is-dragging {
   user-select: none;
 }
