@@ -21,9 +21,10 @@ export async function getBars(params: {
   start: Date;
   end: Date;
   forceRefresh?: boolean;
+  preferCache?: boolean;
   onProgress?: (message: string) => void;
 }): Promise<OhlcvBar[]> {
-  const { symbol, timeframe, start, end, forceRefresh = false, onProgress } = params;
+  const { symbol, timeframe, start, end, forceRefresh = false, preferCache = false, onProgress } = params;
   onProgress?.("Resolving asset metadata...");
   const asset = await ensureAsset(symbol);
   const tf = timeframeToPrisma(timeframe);
@@ -37,6 +38,19 @@ export async function getBars(params: {
     },
     orderBy: { timestamp: "asc" }
   });
+
+  if (preferCache && !forceRefresh && cachedBars.length > 0) {
+    onProgress?.("Using local cached bars.");
+    return cachedBars.map((bar) => ({
+      symbol,
+      timestamp: bar.timestamp.toISOString(),
+      open: bar.open,
+      high: bar.high,
+      low: bar.low,
+      close: bar.close,
+      volume: bar.volume
+    }));
+  }
 
   const needsFetch = forceRefresh || cachedBars.length < 50;
   if (needsFetch) {
