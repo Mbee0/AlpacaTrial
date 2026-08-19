@@ -65,6 +65,9 @@ export default function App() {
   const [portfolioLoading, setPortfolioLoading] = useState(false);
   const [error, setError] = useState<string>();
   const [refreshCounter, setRefreshCounter] = useState(0);
+  const [leftPanePct, setLeftPanePct] = useState(38);
+  const [leftTopPanePct, setLeftTopPanePct] = useState(62);
+  const [rightTopPanePct, setRightTopPanePct] = useState(70);
   const scannerCacheRef = useRef<Map<string, ScannerRow[]>>(new Map());
   const analysisCacheRef = useRef<Map<string, SymbolAnalysisResponse>>(new Map());
   const backtestCacheRef = useRef<Map<string, BacktestResponse>>(new Map());
@@ -87,6 +90,9 @@ export default function App() {
         selectedSymbol?: string;
         safetyLossBufferPct?: number;
         scannerRows?: ScannerRow[];
+        leftPanePct?: number;
+        leftTopPanePct?: number;
+        rightTopPanePct?: number;
       };
       if (parsed.timeframe && timeframeOptions.includes(parsed.timeframe)) {
         setTimeframe(parsed.timeframe);
@@ -102,6 +108,15 @@ export default function App() {
         setScannerRows(parsed.scannerRows);
         scannerCacheRef.current.set(parsed.timeframe ?? "1Hour", parsed.scannerRows);
       }
+      if (typeof parsed.leftPanePct === "number") {
+        setLeftPanePct(parsed.leftPanePct);
+      }
+      if (typeof parsed.leftTopPanePct === "number") {
+        setLeftTopPanePct(parsed.leftTopPanePct);
+      }
+      if (typeof parsed.rightTopPanePct === "number") {
+        setRightTopPanePct(parsed.rightTopPanePct);
+      }
     } catch {
       // Ignore invalid persisted UI state.
     }
@@ -112,10 +127,13 @@ export default function App() {
       timeframe,
       selectedSymbol,
       safetyLossBufferPct,
-      scannerRows: scannerRows.slice(0, 50)
+      scannerRows: scannerRows.slice(0, 50),
+      leftPanePct,
+      leftTopPanePct,
+      rightTopPanePct
     };
     localStorage.setItem(APP_STATE_KEY, JSON.stringify(payload));
-  }, [timeframe, selectedSymbol, safetyLossBufferPct, scannerRows]);
+  }, [timeframe, selectedSymbol, safetyLossBufferPct, scannerRows, leftPanePct, leftTopPanePct, rightTopPanePct]);
 
   useEffect(() => {
     const loadScanner = async () => {
@@ -258,10 +276,10 @@ export default function App() {
             <p>LIVE TRADING DISABLED · Structured analysis + transparent risk controls.</p>
           </div>
           <div className="top-summary">
-            <span className="summary-pill">Symbol {selectedSymbol ?? "—"}</span>
-            <span className="summary-pill">Signal {selectedSignal?.signal ?? "—"}</span>
-            <span className="summary-pill">Score {selectedSignal ? selectedSignal.score.toFixed(1) : "—"}</span>
-            <span className="summary-pill">Timeframe {timeframe}</span>
+            <span className="summary-item">Symbol {selectedSymbol ?? "—"}</span>
+            <span className="summary-item">Signal {selectedSignal?.signal ?? "—"}</span>
+            <span className="summary-item">Score {selectedSignal ? selectedSignal.score.toFixed(1) : "—"}</span>
+            <span className="summary-item">Timeframe {timeframe}</span>
           </div>
         </header>
 
@@ -269,6 +287,47 @@ export default function App() {
           <>
             {error && <div className="error">{error}</div>}
             {loading && <div className="loading">Loading analysis...</div>}
+            <section className="layout-controls panel">
+              <div className="layout-control">
+                <label htmlFor="left-pane">Scanner Width</label>
+                <input
+                  id="left-pane"
+                  type="range"
+                  min={28}
+                  max={55}
+                  step={1}
+                  value={leftPanePct}
+                  onChange={(event) => setLeftPanePct(Number(event.target.value))}
+                />
+                <span>{leftPanePct}%</span>
+              </div>
+              <div className="layout-control">
+                <label htmlFor="left-top">Scanner / Reasoning Split</label>
+                <input
+                  id="left-top"
+                  type="range"
+                  min={45}
+                  max={78}
+                  step={1}
+                  value={leftTopPanePct}
+                  onChange={(event) => setLeftTopPanePct(Number(event.target.value))}
+                />
+                <span>{leftTopPanePct}%</span>
+              </div>
+              <div className="layout-control">
+                <label htmlFor="right-top">Chart / Backtest Split</label>
+                <input
+                  id="right-top"
+                  type="range"
+                  min={50}
+                  max={85}
+                  step={1}
+                  value={rightTopPanePct}
+                  onChange={(event) => setRightTopPanePct(Number(event.target.value))}
+                />
+                <span>{rightTopPanePct}%</span>
+              </div>
+            </section>
             <section className="overview-strip">
               <article className="overview-card">
                 <span>Trend</span>
@@ -295,8 +354,8 @@ export default function App() {
                 <strong>{selectedSignal ? `${selectedSignal.confidence.toFixed(1)}%` : "—"}</strong>
               </article>
             </section>
-            <section className="layout">
-              <div className="left-column">
+            <section className="layout" style={{ gridTemplateColumns: `${leftPanePct}% minmax(0, 1fr)` }}>
+              <div className="left-column" style={{ gridTemplateRows: `${leftTopPanePct}% minmax(0, 1fr)` }}>
                 <ScannerTable
                   rows={scannerRows}
                   selectedSymbol={selectedSymbol}
@@ -313,7 +372,7 @@ export default function App() {
                 />
                 <SignalExplanation signal={selectedSignal} />
               </div>
-              <div className="right-column">
+              <div className="right-column" style={{ gridTemplateRows: `${rightTopPanePct}% minmax(0, 1fr)` }}>
                 <div className="panel chart-panel">
                   <h2>{selectedSymbol ? `${selectedSymbol} Chart Inspection` : "Chart Inspection"}</h2>
                   <p className="muted">

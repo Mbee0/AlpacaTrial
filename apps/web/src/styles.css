@@ -29,14 +29,14 @@ body {
   height: 100dvh;
   padding: 0.55rem;
   display: grid;
-  grid-template-columns: 86px minmax(0, 1fr);
+  grid-template-columns: 58px minmax(0, 1fr);
   gap: 0.55rem;
 }
 
 .taskbar {
   border: none;
   border-radius: 0;
-  background: rgba(20, 31, 49, 0.75);
+  background: transparent;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -46,10 +46,11 @@ body {
 }
 
 .taskbar-brand {
-  height: 48px;
-  color: #cfe0ff;
+  height: 40px;
+  color: #d7e6ff;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
+  font-size: 0.74rem;
   display: grid;
   place-items: center;
 }
@@ -67,7 +68,7 @@ body {
   border-radius: 0;
   background: transparent;
   color: #cfdbf2;
-  min-height: 72px;
+  min-height: 58px;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -79,13 +80,13 @@ body {
 }
 
 .taskbar-button svg {
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
   fill: currentColor;
 }
 
 .taskbar-button span {
-  font-size: 0.69rem;
+  font-size: 0.62rem;
 }
 
 .workspace {
@@ -125,13 +126,11 @@ body {
   flex-wrap: wrap;
 }
 
-.summary-pill {
-  border: 1px solid rgba(155, 177, 219, 0.35);
-  background: rgba(44, 62, 95, 0.72);
-  border-radius: 999px;
-  padding: 0.28rem 0.58rem;
+.summary-item {
+  padding: 0.12rem 0.25rem;
   font-size: 0.75rem;
-  color: #d7e4fd;
+  color: #dce8ff;
+  border-bottom: 1px solid rgba(164, 182, 214, 0.25);
 }
 
 select,
@@ -175,7 +174,7 @@ button:hover {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(330px, 0.9fr) minmax(0, 1.5fr);
+  grid-template-columns: 38% minmax(0, 1fr);
   gap: 0.75rem;
   overflow: hidden;
 }
@@ -189,9 +188,8 @@ button:hover {
 
 .left-column,
 .right-column {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  display: grid;
+  gap: 0.55rem;
   min-height: 0;
   overflow: hidden;
 }
@@ -203,13 +201,13 @@ button:hover {
 .panel {
   background: linear-gradient(170deg, rgba(37, 52, 79, 0.9), rgba(29, 41, 63, 0.86));
   border: 1px solid rgba(134, 154, 192, 0.24);
-  border-radius: 10px;
-  padding: 0.9rem;
+  border-radius: 0;
+  padding: 0.62rem;
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  box-shadow: 0 10px 24px rgba(5, 10, 20, 0.28);
+  box-shadow: none;
 }
 
 .panel h2 {
@@ -227,7 +225,7 @@ button:hover {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  border-radius: 8px;
+  border-radius: 0;
   border: 1px solid rgba(123, 143, 180, 0.28);
 }
 
@@ -281,9 +279,9 @@ ul {
 
 .score-card {
   border: 1px solid rgba(128, 148, 190, 0.28);
-  border-radius: 8px;
+  border-radius: 0;
   background: rgba(44, 60, 90, 0.62);
-  padding: 0.5rem;
+  padding: 0.42rem;
   display: flex;
   flex-direction: column;
 }
@@ -325,7 +323,7 @@ ul {
 
 .error {
   padding: 0.7rem;
-  border-radius: 8px;
+  border-radius: 0;
   border: 1px solid #7f1d1d;
   background: rgba(127, 29, 29, 0.5);
   margin-bottom: 0.8rem;
@@ -344,12 +342,45 @@ ul {
 
 .overview-card {
   border: 1px solid rgba(142, 164, 207, 0.28);
-  border-radius: 10px;
+  border-radius: 0;
   background: linear-gradient(160deg, rgba(53, 76, 116, 0.76), rgba(34, 49, 76, 0.78));
   padding: 0.55rem 0.65rem;
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+}
+
+.layout-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.layout-control {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.layout-control label {
+  font-size: 0.72rem;
+  color: #c5d3ef;
+  white-space: nowrap;
+}
+
+.layout-control input[type="range"] {
+  min-width: 120px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  min-height: auto;
+}
+
+.layout-control span {
+  font-size: 0.72rem;
+  color: #dbe7ff;
 }
 
 .overview-card span {
@@ -431,6 +462,14 @@ ul {
   .scanner-controls label {
     display: none;
   }
+
+  .layout-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .layout-control {
+    grid-template-columns: 120px 1fr 42px;
+  }
 }
 
 @media (max-width: 1100px) {
@@ -457,7 +496,7 @@ ul {
     flex-direction: row;
     width: auto;
     flex: 1;
-    margin-left: 0.65rem;
+    margin-left: 0.4rem;
   }
 
   .taskbar-button {
@@ -465,6 +504,11 @@ ul {
     width: auto;
     padding: 0 0.75rem;
     box-shadow: none;
+  }
+
+  .taskbar-button.active,
+  .taskbar-button.active:hover {
+    box-shadow: inset 0 -2px 0 #93c5fd;
   }
 
   .workspace {
@@ -487,6 +531,7 @@ ul {
 
   .left-column,
   .right-column {
+    grid-template-rows: none !important;
     overflow: visible;
   }
 
@@ -502,6 +547,15 @@ ul {
 
   .scanner-controls {
     grid-template-columns: 1fr;
+  }
+
+  .layout-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .layout-control {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
   }
 
   .portfolio-page {
