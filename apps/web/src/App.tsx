@@ -19,6 +19,7 @@ const timeframeOptions: Timeframe[] = ["1Day", "4Hour", "1Hour", "15Min"];
 type ViewMode = "dashboard" | "portfolio" | "help";
 type DragMode = "vertical" | "left-horizontal" | "right-horizontal" | null;
 const APP_STATE_KEY = "trader-ui-state-v1";
+const SPLITTER_PX = 4;
 
 function TaskbarIcon({ viewMode }: { viewMode: ViewMode }) {
   if (viewMode === "dashboard") {
@@ -357,12 +358,12 @@ export default function App() {
             <section
               className="layout"
               ref={layoutRef}
-              style={{ gridTemplateColumns: `${leftPanePct}% 6px minmax(0, 1fr)` }}
+              style={{ gridTemplateColumns: `${leftPanePct}% ${SPLITTER_PX}px minmax(0, 1fr)` }}
             >
               <div
                 className="left-column"
                 ref={leftColumnRef}
-                style={{ gridTemplateRows: `${leftTopPanePct}% 6px minmax(0, 1fr)` }}
+                style={{ gridTemplateRows: `${leftTopPanePct}% ${SPLITTER_PX}px minmax(0, 1fr)` }}
               >
                 <ScannerTable
                   rows={scannerRows}
@@ -397,7 +398,7 @@ export default function App() {
               <div
                 className="right-column"
                 ref={rightColumnRef}
-                style={{ gridTemplateRows: `${rightTopPanePct}% 6px minmax(0, 1fr)` }}
+                style={{ gridTemplateRows: `${rightTopPanePct}% ${SPLITTER_PX}px minmax(0, 1fr)` }}
               >
                 <div className="panel chart-panel">
                   <h2>{selectedSymbol ? `${selectedSymbol} Chart Inspection` : "Chart Inspection"}</h2>

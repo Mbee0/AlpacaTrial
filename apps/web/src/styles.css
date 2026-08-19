@@ -10,6 +10,9 @@
   --bull: #1ed67c;
   --bear: #ff5a7d;
   --accent: #8db6ff;
+  --edge-pad: 0.14rem;
+  --ui-gap: 0.2rem;
+  --ui-radius: 4px;
   color: var(--text);
   background-color: var(--bg);
   color-scheme: dark;
@@ -34,10 +37,10 @@ body {
 
 .app {
   height: 100dvh;
-  padding: 0.55rem;
+  padding: var(--edge-pad);
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr);
-  gap: 0.55rem;
+  gap: var(--ui-gap);
 }
 
 .taskbar {
@@ -99,7 +102,7 @@ body {
 .workspace {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--ui-gap);
   min-height: 0;
   overflow: hidden;
 }
@@ -107,12 +110,12 @@ body {
 .app-header {
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.5rem;
   align-items: end;
   flex-wrap: wrap;
   border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 0.85rem 1rem;
+  border-radius: var(--ui-radius);
+  padding: 0.55rem 0.7rem;
   background: var(--bg-soft);
 }
 
@@ -129,7 +132,7 @@ body {
 
 .top-summary {
   display: flex;
-  gap: 0.4rem;
+  gap: var(--ui-gap);
   flex-wrap: wrap;
 }
 
@@ -143,7 +146,7 @@ body {
 select,
 button,
 input {
-  border-radius: 6px;
+  border-radius: var(--ui-radius);
   border: 1px solid var(--line);
   background: var(--panel-soft);
   color: var(--text);
@@ -182,7 +185,7 @@ button:hover {
   min-height: 0;
   display: grid;
   grid-template-columns: 38% minmax(0, 1fr);
-  gap: 0.75rem;
+  gap: var(--ui-gap);
   overflow: hidden;
 }
 
@@ -208,8 +211,8 @@ button:hover {
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 0;
-  padding: 0.62rem;
+  border-radius: var(--ui-radius);
+  padding: 0.46rem;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -232,7 +235,7 @@ button:hover {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  border-radius: 0;
+  border-radius: var(--ui-radius);
   border: 1px solid var(--line);
 }
 
@@ -278,15 +281,15 @@ ul {
 }
 
 .score-grid {
-  margin-top: 0.8rem;
+  margin-top: 0.45rem;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 0.55rem;
+  gap: var(--ui-gap);
 }
 
 .score-card {
   border: 1px solid var(--line);
-  border-radius: 0;
+  border-radius: var(--ui-radius);
   background: #2b3a52;
   padding: 0.42rem;
   display: flex;
@@ -306,8 +309,8 @@ ul {
 
 .scanner-toolbar {
   display: grid;
-  gap: 0.55rem;
-  margin-bottom: 0.6rem;
+  gap: var(--ui-gap);
+  margin-bottom: var(--ui-gap);
 }
 
 .scanner-search {
@@ -329,27 +332,27 @@ ul {
 }
 
 .error {
-  padding: 0.7rem;
-  border-radius: 0;
+  padding: 0.5rem;
+  border-radius: var(--ui-radius);
   border: 1px solid #c63c5d;
   background: rgba(170, 39, 71, 0.45);
-  margin-bottom: 0.8rem;
+  margin-bottom: var(--ui-gap);
 }
 
 .loading {
-  margin-bottom: 0.8rem;
+  margin-bottom: var(--ui-gap);
   color: var(--muted);
 }
 
 .overview-strip {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 0.55rem;
+  gap: var(--ui-gap);
 }
 
 .overview-card {
   border: 1px solid var(--line);
-  border-radius: 0;
+  border-radius: var(--ui-radius);
   background: #2a3950;
   padding: 0.55rem 0.65rem;
   display: flex;
@@ -432,7 +435,7 @@ body.is-dragging .splitter-horizontal {
 .portfolio-page {
   display: grid;
   grid-template-rows: minmax(220px, 0.65fr) minmax(240px, 1fr);
-  gap: 0.75rem;
+  gap: var(--ui-gap);
   overflow: hidden;
 }
 
