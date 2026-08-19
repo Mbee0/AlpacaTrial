@@ -40,7 +40,7 @@ export async function getBars(params: {
 
   const needsFetch = forceRefresh || cachedBars.length < 50;
   if (needsFetch) {
-    onProgress?.("Fetching candlestick history from Alpaca...");
+    onProgress?.("Requesting missing bars from Alpaca...");
     const fetchedBars = await fetchHistoricalBars({ symbol, timeframe, start, end });
     onProgress?.("Persisting bars to local database...");
     await prisma.$transaction(

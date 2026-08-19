@@ -46,7 +46,6 @@ export async function registerAnalysisRoutes(app: FastifyInstance) {
     }
 
     try {
-      requestId && updateAnalysisStatus(requestId, "Fetching candlestick history...");
       const bars = await getBars({
         symbol,
         timeframe,
@@ -54,7 +53,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance) {
         end,
         onProgress: requestId ? (message) => updateAnalysisStatus(requestId, message) : undefined
       });
-      requestId && updateAnalysisStatus(requestId, "Candlestick history loaded. Detecting swing points...");
+      requestId && updateAnalysisStatus(requestId, "Detecting swing points...");
       const analysis = analyzeSymbol({
         symbol,
         timeframe,
@@ -63,7 +62,6 @@ export async function registerAnalysisRoutes(app: FastifyInstance) {
       });
       requestId && updateAnalysisStatus(requestId, "Scoring rays and selecting action/safety lines...");
       const lastPrice = bars[bars.length - 1]?.close ?? 0;
-      requestId && updateAnalysisStatus(requestId, "Finalizing chart payload...");
       requestId && completeAnalysisStatus(requestId, "Chart analysis complete.");
 
       return {

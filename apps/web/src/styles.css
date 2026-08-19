@@ -568,20 +568,6 @@ ul {
   animation: statusWave 2s linear infinite;
 }
 
-.chart-status-trail {
-  margin: 0.1rem 0 0;
-  padding-left: 1rem;
-  max-width: min(640px, 88%);
-  font-size: 0.74rem;
-  color: #c4d4f0;
-  display: grid;
-  gap: 0.18rem;
-}
-
-.chart-status-trail li {
-  line-height: 1.28;
-}
-
 .splitter {
   position: relative;
   background: transparent;
