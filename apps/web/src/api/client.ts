@@ -6,30 +6,74 @@ import {
   SymbolAnalysisResponse
 } from "../types";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api";
+const RAW_API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "/api").trim();
+
+function normalizeBase(base: string) {
+  return base.endsWith("/") ? base.slice(0, -1) : base;
+}
+
+function unique(values: string[]) {
+  const seen = new Set<string>();
+  const output: string[] = [];
+  for (const value of values) {
+    if (seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    output.push(value);
+  }
+  return output;
+}
+
+function buildApiBaseCandidates() {
+  const normalized = normalizeBase(RAW_API_BASE_URL);
+  const candidates = [normalized];
+  if (normalized.endsWith("/api")) {
+    candidates.push(normalized.slice(0, -4));
+  } else {
+    candidates.push(`${normalized}/api`);
+  }
+  candidates.push("/api");
+  candidates.push("http://localhost:4000/api");
+  return unique(candidates.map(normalizeBase));
+}
+
+const API_BASE_CANDIDATES = buildApiBaseCandidates();
 
 async function request<T>(path: string, timeoutMs = 30000): Promise<T> {
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  const attemptErrors: string[] = [];
 
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, { signal: controller.signal });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error(`API request timed out after ${Math.round(timeoutMs / 1000)}s.`);
+  for (const baseUrl of API_BASE_CANDIDATES) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+    const target = `${baseUrl}${path}`;
+    try {
+      const response = await fetch(target, { signal: controller.signal });
+      if (!response.ok) {
+        const body = await response.text();
+        attemptErrors.push(`${target} -> ${response.status} ${body}`);
+        if (response.status === 404) {
+          continue;
+        }
+        throw new Error(`API request failed: ${response.status} ${body}`);
+      }
+
+      return response.json() as Promise<T>;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        attemptErrors.push(`${target} -> timed out after ${Math.round(timeoutMs / 1000)}s`);
+        continue;
+      }
+      attemptErrors.push(`${target} -> ${error instanceof Error ? error.message : String(error)}`);
+      continue;
+    } finally {
+      window.clearTimeout(timeout);
     }
-    throw error;
-  } finally {
-    window.clearTimeout(timeout);
   }
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`API request failed: ${response.status} ${body}`);
-  }
-
-  return response.json() as Promise<T>;
+  throw new Error(
+    `API request failed after trying ${API_BASE_CANDIDATES.length} base URL(s). ${attemptErrors.join(" | ")}`
+  );
 }
 
 export function fetchScanner(timeframe: string, limit = 12, concurrency = 4) {
