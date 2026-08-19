@@ -24,6 +24,38 @@ const SPLITTER_PX = 4;
 const MIN_BOTTOM_PANE_PX = 150;
 const MAX_BOTTOM_PANE_PX = 460;
 
+function chartProgressFromStatus(message: string): number {
+  const normalized = message.trim().toLowerCase();
+  if (!normalized) {
+    return 6;
+  }
+  if (normalized.includes("failed")) {
+    return 100;
+  }
+  if (normalized.includes("complete")) {
+    return 100;
+  }
+  if (normalized.includes("scoring")) {
+    return 84;
+  }
+  if (normalized.includes("swing")) {
+    return 68;
+  }
+  if (normalized.includes("candlestick") || normalized.includes("bars") || normalized.includes("fetch")) {
+    return 44;
+  }
+  if (normalized.includes("cache")) {
+    return 28;
+  }
+  if (normalized.includes("preparing")) {
+    return 12;
+  }
+  if (normalized.includes("starting")) {
+    return 8;
+  }
+  return 20;
+}
+
 function TaskbarIcon({ viewMode }: { viewMode: ViewMode }) {
   if (viewMode === "dashboard") {
     return (
@@ -70,6 +102,7 @@ export default function App() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
   const [chartStatusMessage, setChartStatusMessage] = useState("Preparing chart analysis...");
+  const [chartStatusProgress, setChartStatusProgress] = useState(12);
   const [error, setError] = useState<string>();
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [leftPanePct, setLeftPanePct] = useState(38);
@@ -211,6 +244,7 @@ export default function App() {
 
       setDetailsLoading(true);
       setChartStatusMessage("Preparing chart analysis...");
+      setChartStatusProgress(chartProgressFromStatus("Preparing chart analysis..."));
       let statusPollTimer: number | undefined;
       const clearStatusPolling = () => {
         if (statusPollTimer) {
@@ -225,6 +259,7 @@ export default function App() {
             return;
           }
           setChartStatusMessage(status.message);
+          setChartStatusProgress((prev) => Math.max(prev, chartProgressFromStatus(status.message)));
         } catch {
           // Ignore transient status polling failures while main request is in-flight.
         }
@@ -243,6 +278,7 @@ export default function App() {
         setAnalysis(analysisResponse);
         setError(undefined);
         setChartStatusMessage("Chart analysis complete.");
+        setChartStatusProgress(100);
 
         void fetchBacktest(selectedSymbol, timeframe)
           .then((backtestResponse) => {
@@ -263,6 +299,7 @@ export default function App() {
         clearStatusPolling();
         setError(err instanceof Error ? err.message : "Failed to load details.");
         setChartStatusMessage("Analysis request failed.");
+        setChartStatusProgress(100);
       } finally {
         clearStatusPolling();
       }
@@ -439,7 +476,9 @@ export default function App() {
                     event.preventDefault();
                     setDragMode("left-horizontal");
                   }}
-                />
+                >
+                  <span className="splitter-handle" aria-hidden="true" />
+                </div>
                 <SignalExplanation signal={selectedSignal} loading={detailsLoading && !selectedSignal} />
               </div>
               <div
@@ -448,7 +487,9 @@ export default function App() {
                   event.preventDefault();
                   setDragMode("vertical");
                 }}
-              />
+              >
+                <span className="splitter-handle" aria-hidden="true" />
+              </div>
               <div
                 className="right-column"
                 ref={rightColumnRef}
@@ -469,8 +510,19 @@ export default function App() {
                           <span className="wave-dot" />
                           <span className="wave-dot" />
                         </div>
-                        <div className="status-wave-text" aria-live="polite">
-                          {chartStatusMessage}
+                        <div className="status-progress" aria-live="polite">
+                          <div
+                            className={`status-progress-track ${chartStatusMessage.toLowerCase().includes("failed") ? "failed" : ""}`}
+                          >
+                            <div
+                              className="status-progress-fill"
+                              style={{ width: `${Math.max(0, Math.min(100, chartStatusProgress))}%` }}
+                            />
+                          </div>
+                          <div className="status-progress-meta">
+                            <span className="status-wave-text">{chartStatusMessage}</span>
+                            <strong>{Math.round(chartStatusProgress)}%</strong>
+                          </div>
                         </div>
                       </div>
                     ) : (
@@ -484,7 +536,9 @@ export default function App() {
                     event.preventDefault();
                     setDragMode("right-horizontal");
                   }}
-                />
+                >
+                  <span className="splitter-handle" aria-hidden="true" />
+                </div>
                 <BacktestSummary backtest={backtest} loading={detailsLoading && !backtest} />
               </div>
             </section>
