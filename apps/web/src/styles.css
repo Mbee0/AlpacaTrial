@@ -374,7 +374,7 @@ ul {
 }
 
 .signal-panel {
-  max-height: 42%;
+  min-height: 0;
   overflow: auto;
 }
 
@@ -428,7 +428,7 @@ body.is-dragging .splitter-horizontal {
 }
 
 .backtest-panel {
-  max-height: 36%;
+  min-height: 0;
   overflow: auto;
 }
 
@@ -555,7 +555,7 @@ body.is-dragging .splitter-horizontal {
 
   .signal-panel,
   .backtest-panel {
-    max-height: none;
+    min-height: 220px;
   }
 
   .scanner-controls {

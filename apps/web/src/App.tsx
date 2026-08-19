@@ -20,6 +20,8 @@ type ViewMode = "dashboard" | "portfolio" | "help";
 type DragMode = "vertical" | "left-horizontal" | "right-horizontal" | null;
 const APP_STATE_KEY = "trader-ui-state-v1";
 const SPLITTER_PX = 4;
+const MIN_BOTTOM_PANE_PX = 150;
+const MAX_BOTTOM_PANE_PX = 460;
 
 function TaskbarIcon({ viewMode }: { viewMode: ViewMode }) {
   if (viewMode === "dashboard") {
@@ -68,8 +70,8 @@ export default function App() {
   const [error, setError] = useState<string>();
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [leftPanePct, setLeftPanePct] = useState(38);
-  const [leftTopPanePct, setLeftTopPanePct] = useState(62);
-  const [rightTopPanePct, setRightTopPanePct] = useState(70);
+  const [leftBottomPanePx, setLeftBottomPanePx] = useState(250);
+  const [rightBottomPanePx, setRightBottomPanePx] = useState(230);
   const [dragMode, setDragMode] = useState<DragMode>(null);
   const scannerCacheRef = useRef<Map<string, ScannerRow[]>>(new Map());
   const analysisCacheRef = useRef<Map<string, SymbolAnalysisResponse>>(new Map());
@@ -97,8 +99,8 @@ export default function App() {
         safetyLossBufferPct?: number;
         scannerRows?: ScannerRow[];
         leftPanePct?: number;
-        leftTopPanePct?: number;
-        rightTopPanePct?: number;
+        leftBottomPanePx?: number;
+        rightBottomPanePx?: number;
       };
       if (parsed.timeframe && timeframeOptions.includes(parsed.timeframe)) {
         setTimeframe(parsed.timeframe);
@@ -117,11 +119,11 @@ export default function App() {
       if (typeof parsed.leftPanePct === "number") {
         setLeftPanePct(parsed.leftPanePct);
       }
-      if (typeof parsed.leftTopPanePct === "number") {
-        setLeftTopPanePct(parsed.leftTopPanePct);
+      if (typeof parsed.leftBottomPanePx === "number") {
+        setLeftBottomPanePx(parsed.leftBottomPanePx);
       }
-      if (typeof parsed.rightTopPanePct === "number") {
-        setRightTopPanePct(parsed.rightTopPanePct);
+      if (typeof parsed.rightBottomPanePx === "number") {
+        setRightBottomPanePx(parsed.rightBottomPanePx);
       }
     } catch {
       // Ignore invalid persisted UI state.
@@ -135,11 +137,19 @@ export default function App() {
       safetyLossBufferPct,
       scannerRows: scannerRows.slice(0, 50),
       leftPanePct,
-      leftTopPanePct,
-      rightTopPanePct
+      leftBottomPanePx,
+      rightBottomPanePx
     };
     localStorage.setItem(APP_STATE_KEY, JSON.stringify(payload));
-  }, [timeframe, selectedSymbol, safetyLossBufferPct, scannerRows, leftPanePct, leftTopPanePct, rightTopPanePct]);
+  }, [
+    timeframe,
+    selectedSymbol,
+    safetyLossBufferPct,
+    scannerRows,
+    leftPanePct,
+    leftBottomPanePx,
+    rightBottomPanePx
+  ]);
 
   useEffect(() => {
     const loadScanner = async () => {
@@ -267,12 +277,12 @@ export default function App() {
         setLeftPanePct(Math.max(24, Math.min(62, next)));
       } else if (dragMode === "left-horizontal" && leftColumnRef.current) {
         const rect = leftColumnRef.current.getBoundingClientRect();
-        const next = ((event.clientY - rect.top) / rect.height) * 100;
-        setLeftTopPanePct(Math.max(32, Math.min(82, next)));
+        const nextBottom = rect.bottom - event.clientY - SPLITTER_PX / 2;
+        setLeftBottomPanePx(Math.max(MIN_BOTTOM_PANE_PX, Math.min(MAX_BOTTOM_PANE_PX, nextBottom)));
       } else if (dragMode === "right-horizontal" && rightColumnRef.current) {
         const rect = rightColumnRef.current.getBoundingClientRect();
-        const next = ((event.clientY - rect.top) / rect.height) * 100;
-        setRightTopPanePct(Math.max(38, Math.min(88, next)));
+        const nextBottom = rect.bottom - event.clientY - SPLITTER_PX / 2;
+        setRightBottomPanePx(Math.max(MIN_BOTTOM_PANE_PX, Math.min(MAX_BOTTOM_PANE_PX, nextBottom)));
       }
     };
 
@@ -363,7 +373,7 @@ export default function App() {
               <div
                 className="left-column"
                 ref={leftColumnRef}
-                style={{ gridTemplateRows: `${leftTopPanePct}% ${SPLITTER_PX}px minmax(0, 1fr)` }}
+                style={{ gridTemplateRows: `minmax(0, 1fr) ${SPLITTER_PX}px ${leftBottomPanePx}px` }}
               >
                 <ScannerTable
                   rows={scannerRows}
@@ -398,7 +408,7 @@ export default function App() {
               <div
                 className="right-column"
                 ref={rightColumnRef}
-                style={{ gridTemplateRows: `${rightTopPanePct}% ${SPLITTER_PX}px minmax(0, 1fr)` }}
+                style={{ gridTemplateRows: `minmax(0, 1fr) ${SPLITTER_PX}px ${rightBottomPanePx}px` }}
               >
                 <div className="panel chart-panel">
                   <h2>{selectedSymbol ? `${selectedSymbol} Chart Inspection` : "Chart Inspection"}</h2>
