@@ -27,16 +27,54 @@ const MIN_BOTTOM_PANE_PX = 150;
 const MAX_BOTTOM_PANE_PX = 460;
 const chartRangePresets: ChartRangePreset[] = ["1H", "1D", "1M", "6M", "1Y", "5Y", "10Y", "YTD", "ALL"];
 
-function buildQuickRange(timeframe: Timeframe) {
+function resolveChartBarsTimeframe(baseTimeframe: Timeframe, preset: ChartRangePreset): Timeframe {
+  if (preset === "1H" || preset === "1D") {
+    return "15Min";
+  }
+  if (preset === "1M") {
+    return baseTimeframe === "15Min" ? "1Hour" : baseTimeframe;
+  }
+  if (preset === "6M") {
+    if (baseTimeframe === "15Min" || baseTimeframe === "1Hour") {
+      return "4Hour";
+    }
+    return baseTimeframe;
+  }
+  return "1Day";
+}
+
+function buildRangeForPreset(preset: ChartRangePreset) {
   const end = new Date();
   const start = new Date(end);
-  const daysByTimeframe: Record<Timeframe, number> = {
-    "1Day": 180,
-    "4Hour": 45,
-    "1Hour": 14,
-    "15Min": 3
-  };
-  start.setDate(end.getDate() - daysByTimeframe[timeframe]);
+
+  if (preset === "ALL") {
+    return {
+      start: new Date("1990-01-01T00:00:00.000Z").toISOString(),
+      end: end.toISOString()
+    };
+  }
+
+  if (preset === "YTD") {
+    const ytdStart = new Date(Date.UTC(end.getUTCFullYear(), 0, 1, 0, 0, 0, 0));
+    return { start: ytdStart.toISOString(), end: end.toISOString() };
+  }
+
+  if (preset === "1H") {
+    start.setHours(start.getHours() - 36);
+  } else if (preset === "1D") {
+    start.setDate(start.getDate() - 7);
+  } else if (preset === "1M") {
+    start.setMonth(start.getMonth() - 1);
+  } else if (preset === "6M") {
+    start.setMonth(start.getMonth() - 6);
+  } else if (preset === "1Y") {
+    start.setFullYear(start.getFullYear() - 1);
+  } else if (preset === "5Y") {
+    start.setFullYear(start.getFullYear() - 5);
+  } else if (preset === "10Y") {
+    start.setFullYear(start.getFullYear() - 10);
+  }
+
   return {
     start: start.toISOString(),
     end: end.toISOString()
@@ -49,60 +87,6 @@ function formatFixed(value: unknown, digits: number): string {
     return "—";
   }
   return numberValue.toFixed(digits);
-}
-
-function filterBarsByRangePreset(sourceBars: OhlcvBar[] | undefined, preset: ChartRangePreset): OhlcvBar[] {
-  if (!sourceBars || sourceBars.length === 0) {
-    return [];
-  }
-
-  const sortedBars = [...sourceBars].sort(
-    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-  );
-  if (preset === "ALL") {
-    return sortedBars;
-  }
-  const lastBarMs = new Date(sortedBars[sortedBars.length - 1].timestamp).getTime();
-  if (!Number.isFinite(lastBarMs)) {
-    return sortedBars;
-  }
-
-  let startMs = lastBarMs;
-  if (preset === "1H") {
-    startMs = lastBarMs - 60 * 60 * 1000;
-  } else if (preset === "1D") {
-    startMs = lastBarMs - 24 * 60 * 60 * 1000;
-  } else if (preset === "1M") {
-    const start = new Date(lastBarMs);
-    start.setMonth(start.getMonth() - 1);
-    startMs = start.getTime();
-  } else if (preset === "6M") {
-    const start = new Date(lastBarMs);
-    start.setMonth(start.getMonth() - 6);
-    startMs = start.getTime();
-  } else if (preset === "1Y") {
-    const start = new Date(lastBarMs);
-    start.setFullYear(start.getFullYear() - 1);
-    startMs = start.getTime();
-  } else if (preset === "5Y") {
-    const start = new Date(lastBarMs);
-    start.setFullYear(start.getFullYear() - 5);
-    startMs = start.getTime();
-  } else if (preset === "10Y") {
-    const start = new Date(lastBarMs);
-    start.setFullYear(start.getFullYear() - 10);
-    startMs = start.getTime();
-  } else if (preset === "YTD") {
-    const end = new Date(lastBarMs);
-    const start = new Date(Date.UTC(end.getUTCFullYear(), 0, 1, 0, 0, 0, 0));
-    startMs = start.getTime();
-  }
-
-  const filteredBars = sortedBars.filter((bar) => {
-    const ms = new Date(bar.timestamp).getTime();
-    return Number.isFinite(ms) && ms >= startMs;
-  });
-  return filteredBars.length > 0 ? filteredBars : sortedBars;
 }
 
 function chartProgressFromStatus(message: string): number {
@@ -207,9 +191,9 @@ export default function App() {
     () => scannerRows.find((row) => row.symbol === selectedSymbol),
     [scannerRows, selectedSymbol]
   );
-  const visibleChartBars = useMemo(
-    () => filterBarsByRangePreset(chartBars, chartRangePreset),
-    [chartBars, chartRangePreset]
+  const chartBarsTimeframe = useMemo(
+    () => resolveChartBarsTimeframe(timeframe, chartRangePreset),
+    [timeframe, chartRangePreset]
   );
 
   useEffect(() => {
@@ -318,8 +302,10 @@ export default function App() {
       barsRequestIdRef.current = requestId;
       const bufferPct = Math.max(0.1, safetyLossBufferPct) / 100;
       const analysisKey = `${selectedSymbol}:${timeframe}:${bufferPct.toFixed(4)}`;
+      const range = buildRangeForPreset(chartRangePreset);
+      const chartBarsCacheKey = `${selectedSymbol}:${chartBarsTimeframe}:${chartRangePreset}`;
       const symbolTimeframeKey = `${selectedSymbol}:${timeframe}`;
-      const cachedBars = chartBarsCacheRef.current.get(symbolTimeframeKey);
+      const cachedBars = chartBarsCacheRef.current.get(chartBarsCacheKey);
       const cachedAnalysis = analysisCacheRef.current.get(analysisKey);
       const cachedBacktest = backtestCacheRef.current.get(symbolTimeframeKey);
 
@@ -331,14 +317,14 @@ export default function App() {
       setAnalysis(cachedAnalysis);
       setBacktest(cachedBacktest);
       setChartBarsLoading(true);
-      setChartStatusMessage("Fetching candlestick history...");
+      setChartStatusMessage(`Fetching candlestick history (${chartBarsTimeframe})...`);
       setChartStatusProgress(chartProgressFromStatus("Fetching candlestick history..."));
       try {
-        const marketBarsResponse = await fetchMarketBars(selectedSymbol, timeframe, buildQuickRange(timeframe));
+        const marketBarsResponse = await fetchMarketBars(selectedSymbol, chartBarsTimeframe, range);
         if (requestId !== barsRequestIdRef.current) {
           return;
         }
-        chartBarsCacheRef.current.set(symbolTimeframeKey, marketBarsResponse.bars);
+        chartBarsCacheRef.current.set(chartBarsCacheKey, marketBarsResponse.bars);
         setChartBars(marketBarsResponse.bars);
         setChartStatusMessage(
           cachedAnalysis ? "Candlesticks loaded. Cached analysis ready." : "Candlesticks loaded. Run analysis when ready."
@@ -362,7 +348,7 @@ export default function App() {
     };
 
     loadChartBars();
-  }, [selectedSymbol, timeframe, safetyLossBufferPct]);
+  }, [selectedSymbol, timeframe, chartRangePreset, chartBarsTimeframe]);
 
   const runAnalysis = async () => {
     if (!selectedSymbol) {
@@ -382,7 +368,6 @@ export default function App() {
     const cachedBacktest = backtestCacheRef.current.get(symbolTimeframeKey);
     if (cachedAnalysis) {
       setAnalysis(cachedAnalysis);
-      setChartBars(cachedAnalysis.bars);
     }
     if (cachedBacktest) {
       setBacktest(cachedBacktest);
@@ -421,8 +406,6 @@ export default function App() {
       }
       clearStatusPolling();
       analysisCacheRef.current.set(analysisKey, analysisResponse);
-      chartBarsCacheRef.current.set(symbolTimeframeKey, analysisResponse.bars);
-      setChartBars(analysisResponse.bars);
       setAnalysis(analysisResponse);
       setError(undefined);
       setChartStatusMessage("Chart analysis complete.");
@@ -687,7 +670,7 @@ export default function App() {
                         {preset}
                       </button>
                     ))}
-                    <span className="chart-range-interval">Bar interval: {timeframe}</span>
+                    <span className="chart-range-interval">Bar interval: {chartBarsTimeframe}</span>
                   </div>
                   {(chartBarsLoading || detailsLoading) && (
                     <div className="chart-inline-status" aria-live="polite">
@@ -733,11 +716,7 @@ export default function App() {
                         <p className="muted">Select a symbol to load chart history.</p>
                       </div>
                     ) : (
-                      <SymbolChart
-                        analysis={analysis}
-                        bars={visibleChartBars.length > 0 ? visibleChartBars : chartBars}
-                        backtestTrades={backtest?.tradeList}
-                      />
+                      <SymbolChart analysis={analysis} bars={chartBars} backtestTrades={backtest?.tradeList} />
                     )}
                   </div>
                 </div>
