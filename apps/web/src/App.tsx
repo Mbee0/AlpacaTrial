@@ -26,7 +26,7 @@ type DragMode =
   | "left-corner"
   | "right-corner"
   | null;
-const APP_STATE_KEY = "trader-ui-state-v2";
+const APP_STATE_KEY = "trader-ui-state-v3";
 const SPLITTER_PX = 4;
 const MIN_BOTTOM_PANE_PX = 150;
 const MAX_BOTTOM_PANE_PX = 460;
