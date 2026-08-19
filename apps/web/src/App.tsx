@@ -66,10 +66,10 @@ function TaskbarIcon({ viewMode }: { viewMode: ViewMode }) {
 export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>("dashboard");
   const [timeframe, setTimeframe] = useState<Timeframe>("1Hour");
-  const [searchSymbol, setSearchSymbol] = useState("");
+  const [searchSymbol, setSearchSymbol] = useState("AAPL");
   const [safetyLossBufferPct, setSafetyLossBufferPct] = useState(1);
   const [scannerRows, setScannerRows] = useState<ScannerRow[]>([]);
-  const [selectedSymbol, setSelectedSymbol] = useState<string>();
+  const [selectedSymbol, setSelectedSymbol] = useState<string>("AAPL");
   const [chartBars, setChartBars] = useState<OhlcvBar[]>();
   const [analysis, setAnalysis] = useState<SymbolAnalysisResponse>();
   const [backtest, setBacktest] = useState<BacktestResponse>();
@@ -188,7 +188,11 @@ export default function App() {
         if (!selectedSymbol && scanner.rows.length > 0) {
           setSelectedSymbol(scanner.rows[0].symbol);
         }
-        setError(undefined);
+        if (scanner.rows.length === 0 && scanner.diagnostics && scanner.diagnostics.length > 0) {
+          setError(scanner.diagnostics.join(" "));
+        } else {
+          setError(undefined);
+        }
       } catch (err) {
         if (!cachedRows) {
           setError(err instanceof Error ? err.message : "Failed to load scanner.");

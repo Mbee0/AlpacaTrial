@@ -23,6 +23,8 @@ export interface ScannerResponse {
   timeframe: string;
   count: number;
   rows: ScannerRow[];
+  diagnostics?: string[];
+  failures?: Array<{ symbol: string; message: string }>;
 }
 
 export interface BacktestResponse {

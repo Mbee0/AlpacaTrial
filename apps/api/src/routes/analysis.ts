@@ -89,7 +89,8 @@ export async function registerAnalysisRoutes(app: FastifyInstance) {
       .object({
         timeframe: z.string().default("1Hour"),
         symbols: z.string().optional(),
-        limit: z.coerce.number().default(30)
+        limit: z.coerce.number().int().min(1).max(200).default(12),
+        concurrency: z.coerce.number().int().min(1).max(12).default(4)
       })
       .parse(request.query);
 
@@ -127,23 +128,37 @@ export async function registerAnalysisRoutes(app: FastifyInstance) {
       });
     }
 
-    const rows = [];
+    const rows: Array<ReturnType<typeof scannerRowFromSignal>> = [];
     const failures: Array<{ symbol: string; message: string }> = [];
-    for (const symbol of sourceSymbols.slice(0, query.limit)) {
-      try {
-        const bars = await getBars({ symbol, timeframe, start, end });
-        if (bars.length < 100) {
-          continue;
+    const symbolsToScan = sourceSymbols.slice(0, query.limit);
+    let cursor = 0;
+    let skippedForInsufficientBars = 0;
+
+    const workers = Array.from({ length: Math.min(query.concurrency, symbolsToScan.length) }, async () => {
+      while (true) {
+        const nextIndex = cursor++;
+        if (nextIndex >= symbolsToScan.length) {
+          return;
         }
 
-        const analysis = analyzeSymbol({ symbol, timeframe, bars, safetyLossBufferPct: 0.01 });
-        rows.push(scannerRowFromSignal({ signal: analysis.signal, lastPrice: bars[bars.length - 1].close }));
-      } catch (error) {
-        const message = errorMessage(error);
-        failures.push({ symbol, message });
-        request.log.warn({ symbol, error }, "scanner symbol failed");
+        const symbol = symbolsToScan[nextIndex];
+        try {
+          const bars = await getBars({ symbol, timeframe, start, end });
+          if (bars.length < 100) {
+            skippedForInsufficientBars += 1;
+            continue;
+          }
+
+          const analysis = analyzeSymbol({ symbol, timeframe, bars, safetyLossBufferPct: 0.01 });
+          rows.push(scannerRowFromSignal({ signal: analysis.signal, lastPrice: bars[bars.length - 1].close }));
+        } catch (error) {
+          const message = errorMessage(error);
+          failures.push({ symbol, message });
+          request.log.warn({ symbol, error }, "scanner symbol failed");
+        }
       }
-    }
+    });
+    await Promise.all(workers);
 
     const diagnostics: string[] = [];
     if (rows.length === 0 && failures.length > 0) {
@@ -153,7 +168,14 @@ export async function registerAnalysisRoutes(app: FastifyInstance) {
       }
     }
     if (rows.length === 0 && failures.length === 0) {
-      diagnostics.push("No symbols had enough bar history for scoring in the selected window.");
+      diagnostics.push(
+        "No symbols had enough bar history for scoring in the selected window. Scanner may still be warming cache."
+      );
+    }
+    if (skippedForInsufficientBars > 0) {
+      diagnostics.push(
+        `${skippedForInsufficientBars} symbols were skipped because they had fewer than 100 bars in this timeframe window.`
+      );
     }
 
     return {
