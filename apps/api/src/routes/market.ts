@@ -25,8 +25,7 @@ export async function registerMarketRoutes(app: FastifyInstance) {
       timeframe,
       start,
       end,
-      forceRefresh: query.forceRefresh === "true",
-      preferCache: true
+      forceRefresh: query.forceRefresh === "true"
     });
 
     return reply.send({

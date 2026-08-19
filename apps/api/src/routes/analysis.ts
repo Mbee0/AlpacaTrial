@@ -87,7 +87,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance) {
       .object({
         timeframe: z.string().default("1Hour"),
         symbols: z.string().optional(),
-        limit: z.coerce.number().int().min(1).max(100).default(8)
+        limit: z.coerce.number().default(30)
       })
       .parse(request.query);
 

@@ -32,7 +32,7 @@ async function request<T>(path: string, timeoutMs = 30000): Promise<T> {
 }
 
 export function fetchScanner(timeframe: string) {
-  return request<ScannerResponse>(`/analysis/scanner?timeframe=${timeframe}&limit=8`);
+  return request<ScannerResponse>(`/analysis/scanner?timeframe=${timeframe}`);
 }
 
 export function fetchSymbolAnalysis(symbol: string, timeframe: string, safetyLossBufferPct: number) {
@@ -42,15 +42,7 @@ export function fetchSymbolAnalysis(symbol: string, timeframe: string, safetyLos
 }
 
 export function fetchMarketBars(symbol: string, timeframe: string) {
-  const end = new Date();
-  const start = new Date(end);
-  const lookbackDays =
-    timeframe === "1Day" ? 220 : timeframe === "4Hour" ? 100 : timeframe === "1Hour" ? 45 : 14;
-  start.setDate(end.getDate() - lookbackDays);
-  return request<MarketBarsResponse>(
-    `/market/bars?symbol=${symbol}&timeframe=${timeframe}&start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`,
-    12000
-  );
+  return request<MarketBarsResponse>(`/market/bars?symbol=${symbol}&timeframe=${timeframe}`, 15000);
 }
 
 export interface AnalysisStatusResponse {
