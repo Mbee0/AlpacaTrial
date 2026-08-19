@@ -9,13 +9,10 @@ export async function createApp() {
   const app = Fastify({ logger: true });
   await app.register(cors, { origin: true });
 
-  const healthPayload = {
+  app.get("/health", async () => ({
     status: "ok",
     liveTradingEnabled: false
-  };
-
-  app.get("/health", async () => healthPayload);
-  app.get("/api/health", async () => healthPayload);
+  }));
 
   await app.register(async (instance) => {
     await registerMarketRoutes(instance);
