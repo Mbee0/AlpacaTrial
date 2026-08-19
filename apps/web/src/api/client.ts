@@ -8,11 +8,6 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api";
 
-export interface AnalysisRange {
-  start: string;
-  end: string;
-}
-
 async function request<T>(path: string, timeoutMs = 30000): Promise<T> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -46,19 +41,15 @@ export function fetchSymbolAnalysis(symbol: string, timeframe: string, safetyLos
   );
 }
 
-export function fetchMarketBars(symbol: string, timeframe: string, range?: AnalysisRange) {
-  const requestedRange = range ?? (() => {
-    const end = new Date();
-    const start = new Date(end);
-    const lookbackDays =
-      timeframe === "1Day" ? 220 : timeframe === "4Hour" ? 100 : timeframe === "1Hour" ? 45 : 14;
-    start.setDate(end.getDate() - lookbackDays);
-    return { start: start.toISOString(), end: end.toISOString() };
-  })();
-
+export function fetchMarketBars(symbol: string, timeframe: string) {
+  const end = new Date();
+  const start = new Date(end);
+  const lookbackDays =
+    timeframe === "1Day" ? 220 : timeframe === "4Hour" ? 100 : timeframe === "1Hour" ? 45 : 14;
+  start.setDate(end.getDate() - lookbackDays);
   return request<MarketBarsResponse>(
-    `/market/bars?symbol=${symbol}&timeframe=${timeframe}&start=${encodeURIComponent(requestedRange.start)}&end=${encodeURIComponent(requestedRange.end)}`,
-    25000
+    `/market/bars?symbol=${symbol}&timeframe=${timeframe}&start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`,
+    12000
   );
 }
 
@@ -73,26 +64,10 @@ export function fetchSymbolAnalysisWithRequestId(
   symbol: string,
   timeframe: string,
   safetyLossBufferPct: number,
-  requestId: string,
-  options?: {
-    range?: AnalysisRange;
-    useCachedOnly?: boolean;
-  }
+  requestId: string
 ) {
-  const params = new URLSearchParams({
-    timeframe,
-    safetyLossBufferPct: String(safetyLossBufferPct),
-    requestId
-  });
-  if (options?.range) {
-    params.set("start", options.range.start);
-    params.set("end", options.range.end);
-  }
-  if (options?.useCachedOnly) {
-    params.set("useCachedOnly", "true");
-  }
   return request<SymbolAnalysisResponse>(
-    `/analysis/symbol/${symbol}?${params.toString()}`,
+    `/analysis/symbol/${symbol}?timeframe=${timeframe}&safetyLossBufferPct=${safetyLossBufferPct}&requestId=${encodeURIComponent(requestId)}`,
     60000
   );
 }

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ScannerRow, Timeframe } from "@trader/shared";
 import {
-  AnalysisRange,
   fetchAnalysisStatus,
   fetchBacktest,
   fetchMarketBars,
@@ -93,15 +92,6 @@ function buildChartPreviewAnalysis(params: {
 
 function formatFixed(value: unknown, digits: number, fallback = "—") {
   return typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits) : fallback;
-}
-
-function buildQuickRange(timeframe: Timeframe): AnalysisRange {
-  const end = new Date();
-  const start = new Date(end);
-  const lookbackDays =
-    timeframe === "1Day" ? 220 : timeframe === "4Hour" ? 100 : timeframe === "1Hour" ? 45 : 14;
-  start.setDate(end.getDate() - lookbackDays);
-  return { start: start.toISOString(), end: end.toISOString() };
 }
 
 function TaskbarIcon({ viewMode }: { viewMode: ViewMode }) {
@@ -337,41 +327,36 @@ export default function App() {
       statusPollTimer = window.setInterval(pollStatus, 450);
       void pollStatus();
 
-      const analysisRange = buildQuickRange(timeframe);
       let previewReady = false;
-      try {
-        const barsResponse = await fetchMarketBars(selectedSymbol, timeframe, analysisRange);
-        if (requestId !== detailRequestIdRef.current) {
-          clearStatusPolling();
-          return;
-        }
-        previewReady = true;
-        setAnalysis((current) => {
-          if (current && current.symbol === selectedSymbol && current.timeframe === timeframe && current.bars.length > 0) {
-            return current;
+      const barsPrefetch = fetchMarketBars(selectedSymbol, timeframe)
+        .then((barsResponse) => {
+          if (requestId !== detailRequestIdRef.current) {
+            return;
           }
-          return buildChartPreviewAnalysis({
-            symbol: selectedSymbol,
-            timeframe,
-            bars: barsResponse.bars,
-            fallbackSignal: selectedSignal
+          previewReady = true;
+          setAnalysis((current) => {
+            if (current && current.symbol === selectedSymbol && current.timeframe === timeframe && current.bars.length > 0) {
+              return current;
+            }
+            return buildChartPreviewAnalysis({
+              symbol: selectedSymbol,
+              timeframe,
+              bars: barsResponse.bars,
+              fallbackSignal: selectedSignal
+            });
           });
+          pushStatusMessage("Candlestick chart ready. Continuing line analysis...");
+        })
+        .catch((prefetchError) => {
+          if (requestId !== detailRequestIdRef.current) {
+            return;
+          }
+          const prefetchMessage = prefetchError instanceof Error ? prefetchError.message : "Candlestick prefetch failed.";
+          pushStatusMessage(`Candlestick prefetch delayed: ${prefetchMessage}`);
         });
-        pushStatusMessage("Candlestick chart ready. Continuing line analysis...");
-      } catch (prefetchError) {
-        if (requestId !== detailRequestIdRef.current) {
-          clearStatusPolling();
-          return;
-        }
-        const prefetchMessage = prefetchError instanceof Error ? prefetchError.message : "Candlestick prefetch failed.";
-        pushStatusMessage(`Candlestick prefetch delayed: ${prefetchMessage}`);
-      }
 
       try {
-        const analysisResponse = await fetchSymbolAnalysisWithRequestId(selectedSymbol, timeframe, bufferPct, statusRequestId, {
-          range: analysisRange,
-          useCachedOnly: previewReady
-        });
+        const analysisResponse = await fetchSymbolAnalysisWithRequestId(selectedSymbol, timeframe, bufferPct, statusRequestId);
         if (requestId !== detailRequestIdRef.current) {
           clearStatusPolling();
           return;
@@ -401,6 +386,7 @@ export default function App() {
           clearStatusPolling();
           return;
         }
+        await barsPrefetch;
         clearStatusPolling();
         const message = err instanceof Error ? err.message : "Failed to load details.";
         if (previewReady) {

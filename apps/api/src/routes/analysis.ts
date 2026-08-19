@@ -34,18 +34,12 @@ export async function registerAnalysisRoutes(app: FastifyInstance) {
       .object({
         timeframe: z.string().default("1Hour"),
         safetyLossBufferPct: z.coerce.number().default(0.01),
-        requestId: z.string().optional(),
-        start: z.string().optional(),
-        end: z.string().optional(),
-        useCachedOnly: z.enum(["true", "false"]).optional()
+        requestId: z.string().optional()
       })
       .parse(request.query);
     const timeframe = parseTimeframe(query.timeframe);
     const symbol = params.symbol.toUpperCase();
-    const defaults = getDefaultDateRange(timeframe);
-    const start = query.start ? new Date(query.start) : defaults.start;
-    const end = query.end ? new Date(query.end) : defaults.end;
-    const useCachedOnly = query.useCachedOnly === "true";
+    const { start, end } = getDefaultDateRange(timeframe);
     const requestId = query.requestId;
     if (requestId) {
       initAnalysisStatus(requestId, "Starting symbol analysis...");
@@ -58,7 +52,6 @@ export async function registerAnalysisRoutes(app: FastifyInstance) {
         timeframe,
         start,
         end,
-        preferCache: useCachedOnly,
         onProgress: requestId ? (message) => updateAnalysisStatus(requestId, message) : undefined
       });
       requestId && updateAnalysisStatus(requestId, "Candlestick history loaded. Detecting swing points...");
