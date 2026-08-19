@@ -65,7 +65,8 @@ export default function App() {
   const [backtest, setBacktest] = useState<BacktestResponse>();
   const [portfolio, setPortfolio] = useState<PortfolioSummaryResponse>();
   const [portfolioError, setPortfolioError] = useState<string>();
-  const [loading, setLoading] = useState(false);
+  const [scannerLoading, setScannerLoading] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
   const [error, setError] = useState<string>();
   const [refreshCounter, setRefreshCounter] = useState(0);
@@ -162,7 +163,7 @@ export default function App() {
         }
       }
 
-      setLoading(true);
+      setScannerLoading(true);
       try {
         const scanner = await fetchScanner(timeframe);
         scannerCacheRef.current.set(cacheKey, scanner.rows);
@@ -176,7 +177,7 @@ export default function App() {
           setError(err instanceof Error ? err.message : "Failed to load scanner.");
         }
       }
-      setLoading(false);
+      setScannerLoading(false);
     };
 
     loadScanner();
@@ -202,7 +203,7 @@ export default function App() {
         setBacktest(cachedBacktest);
       }
 
-      setLoading(true);
+      setDetailsLoading(true);
       try {
         const [analysisResponse, backtestResponse] = await Promise.all([
           fetchSymbolAnalysis(selectedSymbol, timeframe, bufferPct),
@@ -223,7 +224,7 @@ export default function App() {
         setError(err instanceof Error ? err.message : "Failed to load details.");
       }
       if (requestId === detailRequestIdRef.current) {
-        setLoading(false);
+        setDetailsLoading(false);
       }
     };
 
@@ -338,7 +339,6 @@ export default function App() {
         {viewMode === "dashboard" && (
           <>
             {error && <div className="error">{error}</div>}
-            {loading && <div className="loading">Loading analysis...</div>}
             <section className="overview-strip">
               <article className="overview-card">
                 <span>Trend</span>
@@ -379,6 +379,7 @@ export default function App() {
                   rows={scannerRows}
                   selectedSymbol={selectedSymbol}
                   onSelectSymbol={handleSelectSymbol}
+                  loading={scannerLoading}
                   timeframe={timeframe}
                   timeframeOptions={timeframeOptions}
                   onTimeframeChange={setTimeframe}
@@ -396,7 +397,7 @@ export default function App() {
                     setDragMode("left-horizontal");
                   }}
                 />
-                <SignalExplanation signal={selectedSignal} />
+                <SignalExplanation signal={selectedSignal} loading={detailsLoading && !selectedSignal} />
               </div>
               <div
                 className={`splitter splitter-vertical ${dragMode === "vertical" ? "active" : ""}`}
@@ -411,12 +412,23 @@ export default function App() {
                 style={{ gridTemplateRows: `minmax(0, 1fr) ${SPLITTER_PX}px ${rightBottomPanePx}px` }}
               >
                 <div className="panel chart-panel">
-                  <h2>{selectedSymbol ? `${selectedSymbol} Chart Inspection` : "Chart Inspection"}</h2>
-                  <p className="muted">
-                    Candles, volume, progressive bullish/bearish rays, Action Line, Safety Line, Safety-Loss Line, and backtest trade markers.
-                  </p>
+                  <h2 className="title-with-hint">
+                    {selectedSymbol ? `${selectedSymbol} Chart Inspection` : "Chart Inspection"}
+                    <span className="title-hint">
+                      Candles, volume, trend rays, Action/Safety/Safety-Loss lines, and backtest trade markers.
+                    </span>
+                  </h2>
                   <div className="chart-host">
-                    <SymbolChart analysis={analysis} backtestTrades={backtest?.tradeList} />
+                    {detailsLoading && !analysis ? (
+                      <div className="chart-loading">
+                        <span className="bubble-skeleton" />
+                        <span className="bubble-skeleton short" />
+                        <span className="bubble-skeleton" />
+                        <span className="bubble-skeleton medium" />
+                      </div>
+                    ) : (
+                      <SymbolChart analysis={analysis} backtestTrades={backtest?.tradeList} />
+                    )}
                   </div>
                 </div>
                 <div
@@ -426,7 +438,7 @@ export default function App() {
                     setDragMode("right-horizontal");
                   }}
                 />
-                <BacktestSummary backtest={backtest} />
+                <BacktestSummary backtest={backtest} loading={detailsLoading && !backtest} />
               </div>
             </section>
           </>

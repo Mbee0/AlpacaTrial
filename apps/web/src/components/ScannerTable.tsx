@@ -4,6 +4,7 @@ interface ScannerTableProps {
   rows: ScannerRow[];
   selectedSymbol?: string;
   onSelectSymbol: (symbol: string) => void;
+  loading: boolean;
   timeframe: Timeframe;
   timeframeOptions: Timeframe[];
   onTimeframeChange: (timeframe: Timeframe) => void;
@@ -32,6 +33,7 @@ export function ScannerTable({
   rows,
   selectedSymbol,
   onSelectSymbol,
+  loading,
   timeframe,
   timeframeOptions,
   onTimeframeChange,
@@ -42,12 +44,16 @@ export function ScannerTable({
   onSafetyLossBufferPctChange,
   onRefreshScanner
 }: ScannerTableProps) {
+  const shouldShowSkeleton = loading && rows.length === 0;
+
   return (
     <div className="panel scanner-panel">
-      <h2>Market Scanner</h2>
-      <p className="muted">
-        Ranked symbols with transparent scoring. Click any symbol to inspect trendlines and decision logic.
-      </p>
+      <h2 className="title-with-hint">
+        Market Scanner
+        <span className="title-hint">
+          Ranked symbols with transparent scoring. Click any symbol to inspect trendlines and decision logic.
+        </span>
+      </h2>
       <div className="scanner-toolbar">
         <div className="scanner-search">
           <input
@@ -111,24 +117,34 @@ export function ScannerTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr
-                key={row.symbol}
-                className={selectedSymbol === row.symbol ? "selected" : ""}
-                onClick={() => onSelectSymbol(row.symbol)}
-              >
-                <td>{row.symbol}</td>
-                <td>{row.lastPrice.toFixed(2)}</td>
-                <td>{row.trendDirection}</td>
-                <td>{row.actionLine?.toFixed(2) ?? "-"}</td>
-                <td>{row.safetyLine?.toFixed(2) ?? "-"}</td>
-                <td>{row.safetyLossLine?.toFixed(2) ?? "-"}</td>
-                <td>{row.score.toFixed(1)}</td>
-                <td style={{ color: signalColor(row.signal), fontWeight: 700 }}>{row.signal}</td>
-                <td>{row.confidence.toFixed(1)}</td>
-                <td>{row.riskPerShare?.toFixed(2) ?? "-"}</td>
-              </tr>
-            ))}
+            {shouldShowSkeleton
+              ? Array.from({ length: 8 }).map((_, index) => (
+                  <tr key={`skeleton-row-${index}`} className="skeleton-row">
+                    {Array.from({ length: 10 }).map((__, cellIndex) => (
+                      <td key={`skeleton-cell-${index}-${cellIndex}`}>
+                        <span className="bubble-skeleton" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              : rows.map((row) => (
+                  <tr
+                    key={row.symbol}
+                    className={selectedSymbol === row.symbol ? "selected" : ""}
+                    onClick={() => onSelectSymbol(row.symbol)}
+                  >
+                    <td>{row.symbol}</td>
+                    <td>{row.lastPrice.toFixed(2)}</td>
+                    <td>{row.trendDirection}</td>
+                    <td>{row.actionLine?.toFixed(2) ?? "-"}</td>
+                    <td>{row.safetyLine?.toFixed(2) ?? "-"}</td>
+                    <td>{row.safetyLossLine?.toFixed(2) ?? "-"}</td>
+                    <td>{row.score.toFixed(1)}</td>
+                    <td style={{ color: signalColor(row.signal), fontWeight: 700 }}>{row.signal}</td>
+                    <td>{row.confidence.toFixed(1)}</td>
+                    <td>{row.riskPerShare?.toFixed(2) ?? "-"}</td>
+                  </tr>
+                ))}
           </tbody>
         </table>
       </div>

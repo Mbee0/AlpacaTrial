@@ -225,6 +225,45 @@ button:hover {
   font-size: 1rem;
 }
 
+.title-with-hint {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.title-hint {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 6;
+  width: max-content;
+  max-width: min(460px, 80vw);
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  padding: 0.36rem 0.48rem;
+  background: #31465f;
+  color: #e9f2ff;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.35;
+  box-shadow: 0 10px 24px rgba(14, 21, 34, 0.28);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-2px);
+  pointer-events: none;
+  transition:
+    opacity 130ms ease,
+    transform 130ms ease,
+    visibility 0ms linear 700ms;
+}
+
+.title-with-hint:hover .title-hint {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition-delay: 700ms;
+}
+
 .muted {
   color: var(--muted);
   margin-top: 0;
@@ -307,6 +346,56 @@ ul {
   font-weight: 700;
 }
 
+@keyframes bubblePulse {
+  0% {
+    opacity: 0.5;
+    transform: scaleX(0.95);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scaleX(1);
+  }
+  100% {
+    opacity: 0.55;
+    transform: scaleX(0.96);
+  }
+}
+
+.bubble-skeleton {
+  display: block;
+  width: 100%;
+  height: 11px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7fa4e1 0%, #b9cff5 48%, #7fa4e1 100%);
+  animation: bubblePulse 1.25s ease-in-out infinite;
+}
+
+.bubble-skeleton.short {
+  width: 56%;
+}
+
+.bubble-skeleton.medium {
+  width: 76%;
+}
+
+.bubble-stack {
+  display: grid;
+  gap: 0.48rem;
+  margin-top: 0.15rem;
+}
+
+.skeleton-row {
+  cursor: default;
+}
+
+.skeleton-row:hover {
+  background: transparent;
+}
+
+.skeleton-row td {
+  pointer-events: none;
+}
+
 .scanner-toolbar {
   display: grid;
   gap: var(--ui-gap);
@@ -386,6 +475,16 @@ ul {
   flex: 1;
   min-height: 320px;
   width: 100%;
+}
+
+.chart-loading {
+  height: 100%;
+  min-height: 320px;
+  border: 1px dashed rgba(162, 187, 230, 0.4);
+  display: grid;
+  align-content: center;
+  gap: 0.6rem;
+  padding: 0.8rem;
 }
 
 .splitter {

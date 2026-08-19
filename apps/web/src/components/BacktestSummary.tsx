@@ -2,14 +2,29 @@ import { BacktestResponse } from "../types";
 
 interface BacktestSummaryProps {
   backtest?: BacktestResponse;
+  loading?: boolean;
 }
 
-export function BacktestSummary({ backtest }: BacktestSummaryProps) {
+export function BacktestSummary({ backtest, loading = false }: BacktestSummaryProps) {
   return (
     <div className="panel backtest-panel">
-      <h2>Backtest Snapshot</h2>
+      <h2 className="title-with-hint">
+        Backtest Snapshot
+        <span className="title-hint">Historical simulation summary for this symbol and timeframe.</span>
+      </h2>
       {!backtest ? (
-        <p className="muted">Run a symbol analysis to generate a paired backtest result.</p>
+        loading ? (
+          <div className="score-grid">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={`backtest-skeleton-${index}`} className="score-card">
+                <span className="bubble-skeleton" />
+                <span className="bubble-skeleton short" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="muted">Run a symbol analysis to generate a paired backtest result.</p>
+        )
       ) : (
         <div className="score-grid">
           <div className="score-card">

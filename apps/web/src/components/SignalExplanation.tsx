@@ -2,24 +2,36 @@ import { ScannerRow } from "@trader/shared";
 
 interface SignalExplanationProps {
   signal?: ScannerRow;
+  loading?: boolean;
 }
 
-export function SignalExplanation({ signal }: SignalExplanationProps) {
+export function SignalExplanation({ signal, loading = false }: SignalExplanationProps) {
   if (!signal) {
     return (
       <div className="panel signal-panel">
-        <h2>Signal Reasoning</h2>
-        <p className="muted">Select a symbol to inspect strategy explanation.</p>
+        <h2 className="title-with-hint">
+          Signal Reasoning
+          <span className="title-hint">Shows the specific conditions and score contributions driving the signal.</span>
+        </h2>
+        {loading ? (
+          <div className="bubble-stack">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <span key={`signal-skeleton-${index}`} className="bubble-skeleton" />
+            ))}
+          </div>
+        ) : (
+          <p className="muted">Select a symbol to inspect strategy explanation.</p>
+        )}
       </div>
     );
   }
 
   return (
     <div className="panel signal-panel">
-      <h2>
+      <h2 className="title-with-hint">
         {signal.symbol} — {signal.signal}
+        <span className="title-hint">Every signal is transparent, with line context and scoring details.</span>
       </h2>
-      <p className="muted">Every signal includes a transparent breakdown, never a black-box BUY/SELL call.</p>
       <ul>
         {signal.explanation.map((line, index) => (
           <li key={`${line}-${index}`}>{line}</li>
