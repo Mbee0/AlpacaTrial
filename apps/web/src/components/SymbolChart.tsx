@@ -29,10 +29,6 @@ function toUtcTimestamp(timestamp: string): UTCTimestamp {
   return Math.floor(new Date(timestamp).getTime() / 1000) as UTCTimestamp;
 }
 
-function formatMarkerPrice(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "—";
-}
-
 function projectLineValueAt(line: SymbolAnalysisResponse["trendlines"][number], timestamp: string) {
   const x1 = new Date(line.startTime).getTime();
   const x = new Date(timestamp).getTime();
@@ -195,14 +191,14 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
         position: "belowBar" as const,
         color: "#1ed67c",
         shape: "arrowUp" as const,
-        text: `Entry ${formatMarkerPrice(trade.entryPrice)}`
+        text: `Entry ${trade.entryPrice.toFixed(2)}`
       },
       {
         time: toUtcTimestamp(trade.exitTime),
         position: "aboveBar" as const,
         color: "#ff5a7d",
         shape: "arrowDown" as const,
-        text: `Exit ${formatMarkerPrice(trade.exitPrice)}`
+        text: `Exit ${trade.exitPrice.toFixed(2)}`
       }
     ]);
 
