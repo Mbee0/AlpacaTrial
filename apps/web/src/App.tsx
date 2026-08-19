@@ -77,7 +77,6 @@ export default function App() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [backtestLoading, setBacktestLoading] = useState(false);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
-  const [chartError, setChartError] = useState<string>();
   const [chartStatusMessage, setChartStatusMessage] = useState("Preparing chart analysis...");
   const [showDetailRetryPrompt, setShowDetailRetryPrompt] = useState(false);
   const [detailFetchElapsedSec, setDetailFetchElapsedSec] = useState(0);
@@ -216,18 +215,13 @@ export default function App() {
       const cachedBacktest = backtestCacheRef.current.get(backtestKey);
       if (cachedAnalysis) {
         setAnalysis(cachedAnalysis);
-      } else {
-        setAnalysis(undefined);
       }
       if (cachedBacktest) {
         setBacktest(cachedBacktest);
-      } else {
-        setBacktest(undefined);
       }
 
       setDetailsLoading(true);
       setBacktestLoading(true);
-      setChartError(undefined);
       setChartStatusMessage("Preparing chart analysis...");
       setShowDetailRetryPrompt(false);
       setDetailFetchElapsedSec(0);
@@ -315,7 +309,6 @@ export default function App() {
         analysisCacheRef.current.set(cacheKey, analysisResponse);
         setAnalysis(analysisResponse);
         setError(undefined);
-        setChartError(undefined);
         setChartStatusMessage("Chart analysis complete.");
         setShowDetailRetryPrompt(false);
         setDetailFetchElapsedSec(0);
@@ -325,9 +318,7 @@ export default function App() {
           return;
         }
         clearRequestTimers();
-        const message = err instanceof Error ? err.message : "Failed to load details.";
-        setError(message);
-        setChartError(message);
+        setError(err instanceof Error ? err.message : "Failed to load details.");
         setChartStatusMessage("Analysis request failed.");
         setShowDetailRetryPrompt(true);
       } finally {
@@ -379,19 +370,8 @@ export default function App() {
   const handleRetryDetails = () => {
     setShowDetailRetryPrompt(false);
     setDetailFetchElapsedSec(0);
-    setChartError(undefined);
     setDetailRefreshCounter((value) => value + 1);
   };
-
-  const chartFallbackMessage = useMemo(() => {
-    if (!selectedSymbol) {
-      return "No symbol selected yet. Choose a symbol in Market Scanner or search for one to load the chart.";
-    }
-    if (chartError) {
-      return `Chart load failed for ${selectedSymbol}: ${chartError}`;
-    }
-    return `No chart data loaded for ${selectedSymbol} yet. Click Retry chart fetch.`;
-  }, [chartError, selectedSymbol]);
 
   useEffect(() => {
     if (!dragMode) {
@@ -582,17 +562,8 @@ export default function App() {
                           {chartStatusMessage}
                         </div>
                       </div>
-                    ) : analysis ? (
-                      <SymbolChart analysis={analysis} backtestTrades={backtest?.tradeList} />
                     ) : (
-                      <div className="chart-empty-state">
-                        <p>{chartFallbackMessage}</p>
-                        {selectedSymbol && (
-                          <button type="button" className="chart-retry-button" onClick={handleRetryDetails}>
-                            Retry chart fetch
-                          </button>
-                        )}
-                      </div>
+                      <SymbolChart analysis={analysis} backtestTrades={backtest?.tradeList} />
                     )}
                   </div>
                   {showDetailRetryPrompt && (
