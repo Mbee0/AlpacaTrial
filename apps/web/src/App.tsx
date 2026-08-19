@@ -80,7 +80,6 @@ export default function App() {
   const [backtestLoading, setBacktestLoading] = useState(false);
   const [backtestError, setBacktestError] = useState<string>();
   const [portfolioLoading, setPortfolioLoading] = useState(false);
-  const [chartBootstrapComplete, setChartBootstrapComplete] = useState(false);
   const [chartError, setChartError] = useState<string>();
   const [chartStatusMessage, setChartStatusMessage] = useState("Preparing chart analysis...");
   const [showDetailRetryPrompt, setShowDetailRetryPrompt] = useState(false);
@@ -175,10 +174,6 @@ export default function App() {
     const loadScanner = async () => {
       const cacheKey = timeframe;
       const cachedRows = scannerCacheRef.current.get(cacheKey);
-      const hasCachedRows = Boolean(cachedRows && cachedRows.length > 0);
-      if (!chartBootstrapComplete && !hasCachedRows && refreshCounter === 0) {
-        return;
-      }
       if (cachedRows && cachedRows.length > 0 && refreshCounter === 0) {
         setScannerRows(cachedRows);
         if (!selectedSymbol) {
@@ -208,7 +203,7 @@ export default function App() {
     };
 
     loadScanner();
-  }, [timeframe, refreshCounter, chartBootstrapComplete]);
+  }, [timeframe, refreshCounter]);
 
   useEffect(() => {
     if (!selectedSymbol) {
@@ -386,7 +381,6 @@ export default function App() {
       }
       if (requestId === detailRequestIdRef.current) {
         setDetailsLoading(false);
-        setChartBootstrapComplete(true);
       }
     };
 
