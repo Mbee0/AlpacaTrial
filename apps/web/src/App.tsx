@@ -20,13 +20,13 @@ import "./styles.css";
 const timeframeOptions: Timeframe[] = ["1Day", "4Hour", "1Hour", "15Min"];
 type ViewMode = "dashboard" | "portfolio" | "help";
 type DragMode = "vertical" | "left-horizontal" | "right-horizontal" | null;
-type ChartRangePreset = "1H" | "1D" | "1M" | "6M" | "1Y" | "5Y" | "10Y" | "YTD" | "ALL";
+type ChartRangePreset = "1H" | "1D" | "1M" | "6M" | "1Y" | "5Y" | "YTD";
 type ChartAggregation = "none" | "5D" | "2W" | "1M";
 const APP_STATE_KEY = "trader-ui-state-v1";
 const SPLITTER_PX = 4;
 const MIN_BOTTOM_PANE_PX = 150;
 const MAX_BOTTOM_PANE_PX = 460;
-const chartRangePresets: ChartRangePreset[] = ["1H", "1D", "1M", "6M", "1Y", "5Y", "10Y", "YTD", "ALL"];
+const chartRangePresets: ChartRangePreset[] = ["1H", "1D", "1M", "6M", "1Y", "5Y", "YTD"];
 
 function resolveChartBarsTimeframe(baseTimeframe: Timeframe, preset: ChartRangePreset): Timeframe {
   if (preset === "1H" || preset === "1D") {
@@ -48,25 +48,12 @@ function resolveChartAggregation(preset: ChartRangePreset): ChartAggregation {
   if (preset === "5Y") {
     return "5D";
   }
-  if (preset === "10Y") {
-    return "2W";
-  }
-  if (preset === "ALL") {
-    return "1M";
-  }
   return "none";
 }
 
 function buildRangeForPreset(preset: ChartRangePreset) {
   const end = new Date();
   const start = new Date(end);
-
-  if (preset === "ALL") {
-    return {
-      start: new Date("1900-01-01T00:00:00.000Z").toISOString(),
-      end: end.toISOString()
-    };
-  }
 
   if (preset === "YTD") {
     const ytdStart = new Date(Date.UTC(end.getUTCFullYear(), 0, 1, 0, 0, 0, 0));
@@ -85,8 +72,6 @@ function buildRangeForPreset(preset: ChartRangePreset) {
     start.setFullYear(start.getFullYear() - 1);
   } else if (preset === "5Y") {
     start.setFullYear(start.getFullYear() - 5);
-  } else if (preset === "10Y") {
-    start.setFullYear(start.getFullYear() - 10);
   }
 
   return {
@@ -203,10 +188,6 @@ function buildHistoryCoverageNote(
   const daysGap = Math.floor((firstMs - requestedStartMs) / (24 * 60 * 60 * 1000));
   if (daysGap <= 8) {
     return `History loaded from ${first.timestamp.slice(0, 10)} to ${last.timestamp.slice(0, 10)}.`;
-  }
-
-  if (preset === "ALL") {
-    return `Showing all available history from data source (${first.timestamp.slice(0, 10)} to ${last.timestamp.slice(0, 10)}).`;
   }
 
   return `Requested ${preset}, but available history starts at ${first.timestamp.slice(0, 10)} for this symbol/data feed.`;
