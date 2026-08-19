@@ -13,7 +13,6 @@ const envSchema = z.object({
   ALPACA_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).default(12000),
   SCANNER_SYMBOL_TIMEOUT_MS: z.coerce.number().int().min(1000).default(15000),
   ANALYSIS_BARS_TIMEOUT_MS: z.coerce.number().int().min(1000).default(20000),
-  BACKTEST_BARS_TIMEOUT_MS: z.coerce.number().int().min(1000).default(12000),
   LIVE_TRADING_ENABLED: z.string().default("false"),
   DEFAULT_RISK_PCT: z.coerce.number().default(0.01),
   MAX_POSITION_SIZE: z.coerce.number().default(50000),

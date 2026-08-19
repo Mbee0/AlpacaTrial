@@ -78,7 +78,6 @@ export default function App() {
   const [scannerLoading, setScannerLoading] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [backtestLoading, setBacktestLoading] = useState(false);
-  const [backtestError, setBacktestError] = useState<string>();
   const [portfolioLoading, setPortfolioLoading] = useState(false);
   const [chartError, setChartError] = useState<string>();
   const [chartStatusMessage, setChartStatusMessage] = useState("Preparing chart analysis...");
@@ -242,8 +241,7 @@ export default function App() {
       }
 
       setDetailsLoading(true);
-      setBacktestLoading(!cachedBacktest);
-      setBacktestError(undefined);
+      setBacktestLoading(true);
       setChartError(undefined);
       setChartStatusMessage("Preparing chart analysis...");
       setShowDetailRetryPrompt(false);
@@ -282,6 +280,26 @@ export default function App() {
           // Ignore transient status polling failures while main request is in-flight.
         }
       };
+
+      void fetchBacktest(selectedSymbol, timeframe)
+        .then((backtestResponse) => {
+          if (requestId !== detailRequestIdRef.current) {
+            return;
+          }
+          backtestCacheRef.current.set(backtestKey, backtestResponse);
+          setBacktest(backtestResponse);
+        })
+        .catch((err) => {
+          if (requestId !== detailRequestIdRef.current) {
+            return;
+          }
+          setError(err instanceof Error ? err.message : "Backtest request failed.");
+        })
+        .finally(() => {
+          if (requestId === detailRequestIdRef.current) {
+            setBacktestLoading(false);
+          }
+        });
 
       try {
         let barsForChart = cachedBars ?? cachedAnalysis?.bars;
@@ -338,39 +356,12 @@ export default function App() {
         setChartStatusMessage("Chart analysis complete.");
         setShowDetailRetryPrompt(false);
         setDetailFetchElapsedSec(0);
-
-        if (!cachedBacktest) {
-          setBacktestLoading(true);
-          void fetchBacktest(selectedSymbol, timeframe)
-            .then((backtestResponse) => {
-              if (requestId !== detailRequestIdRef.current) {
-                return;
-              }
-              backtestCacheRef.current.set(backtestKey, backtestResponse);
-              setBacktest(backtestResponse);
-              setBacktestError(undefined);
-            })
-            .catch((err) => {
-              if (requestId !== detailRequestIdRef.current) {
-                return;
-              }
-              setBacktestError(err instanceof Error ? err.message : "Backtest request failed.");
-            })
-            .finally(() => {
-              if (requestId === detailRequestIdRef.current) {
-                setBacktestLoading(false);
-              }
-            });
-        } else {
-          setBacktestLoading(false);
-        }
       } catch (err) {
         if (requestId !== detailRequestIdRef.current) {
           clearRequestTimers();
           return;
         }
         clearRequestTimers();
-        setBacktestLoading(false);
         const message = err instanceof Error ? err.message : "Failed to load details.";
         setError(message);
         setChartError(message);
@@ -682,7 +673,7 @@ export default function App() {
                     title="Drag corner to resize both panes"
                   />
                 </div>
-                <BacktestSummary backtest={backtest} loading={backtestLoading && !backtest} error={backtestError} />
+                <BacktestSummary backtest={backtest} loading={backtestLoading && !backtest} />
               </div>
             </section>
           </>

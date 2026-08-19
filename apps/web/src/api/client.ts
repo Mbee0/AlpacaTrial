@@ -128,8 +128,7 @@ export function fetchAnalysisStatus(requestId: string) {
 
 export function fetchBacktest(symbol: string, timeframe: string) {
   return request<BacktestResponse>(
-    `/backtest/run?symbol=${symbol}&timeframe=${timeframe}&startingBalance=10000&riskPct=0.01`,
-    12000
+    `/backtest/run?symbol=${symbol}&timeframe=${timeframe}&startingBalance=10000&riskPct=0.01`
   );
 }
 

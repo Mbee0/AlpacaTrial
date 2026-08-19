@@ -3,10 +3,9 @@ import { BacktestResponse } from "../types";
 interface BacktestSummaryProps {
   backtest?: BacktestResponse;
   loading?: boolean;
-  error?: string;
 }
 
-export function BacktestSummary({ backtest, loading = false, error }: BacktestSummaryProps) {
+export function BacktestSummary({ backtest, loading = false }: BacktestSummaryProps) {
   return (
     <div className="panel backtest-panel">
       <h2 className="title-with-hint">
@@ -24,9 +23,7 @@ export function BacktestSummary({ backtest, loading = false, error }: BacktestSu
             ))}
           </div>
         ) : (
-          <p className="muted">
-            {error ? `Backtest unavailable right now: ${error}` : "Run a symbol analysis to generate a paired backtest result."}
-          </p>
+          <p className="muted">Run a symbol analysis to generate a paired backtest result.</p>
         )
       ) : (
         <div className="score-grid">
