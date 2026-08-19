@@ -484,6 +484,52 @@ ul {
   flex: 1;
 }
 
+.chart-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.45rem;
+}
+
+.chart-panel-head h2 {
+  margin: 0;
+}
+
+.chart-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.analysis-run-button {
+  background: #2b4c77;
+  border-color: #6f9add;
+  color: #e8f3ff;
+}
+
+.analysis-run-button:hover:not(:disabled) {
+  background: #355a8b;
+  border-color: #9bc0ff;
+}
+
+.analysis-run-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.analysis-clear-button {
+  background: #324258;
+}
+
+.chart-inline-status {
+  width: min(460px, 100%);
+  display: grid;
+  gap: 0.34rem;
+  margin-bottom: 0.42rem;
+}
+
 .chart-host {
   flex: 1;
   min-height: 320px;

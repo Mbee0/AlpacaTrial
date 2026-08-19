@@ -117,6 +117,7 @@ export default function App() {
   const [portfolio, setPortfolio] = useState<PortfolioSummaryResponse>();
   const [portfolioError, setPortfolioError] = useState<string>();
   const [scannerLoading, setScannerLoading] = useState(false);
+  const [chartBarsLoading, setChartBarsLoading] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
   const [chartStatusMessage, setChartStatusMessage] = useState("Preparing chart analysis...");
@@ -128,8 +129,10 @@ export default function App() {
   const [rightBottomPanePx, setRightBottomPanePx] = useState(230);
   const [dragMode, setDragMode] = useState<DragMode>(null);
   const scannerCacheRef = useRef<Map<string, ScannerRow[]>>(new Map());
+  const chartBarsCacheRef = useRef<Map<string, OhlcvBar[]>>(new Map());
   const analysisCacheRef = useRef<Map<string, SymbolAnalysisResponse>>(new Map());
   const backtestCacheRef = useRef<Map<string, BacktestResponse>>(new Map());
+  const barsRequestIdRef = useRef(0);
   const detailRequestIdRef = useRef(0);
   const layoutRef = useRef<HTMLElement | null>(null);
   const leftColumnRef = useRef<HTMLDivElement | null>(null);
@@ -241,121 +244,155 @@ export default function App() {
       return;
     }
 
-    const loadDetails = async () => {
-      const requestId = detailRequestIdRef.current + 1;
-      detailRequestIdRef.current = requestId;
-      const statusRequestId =
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const loadChartBars = async () => {
+      const requestId = barsRequestIdRef.current + 1;
+      barsRequestIdRef.current = requestId;
       const bufferPct = Math.max(0.1, safetyLossBufferPct) / 100;
-      const cacheKey = `${selectedSymbol}:${timeframe}:${bufferPct.toFixed(4)}`;
-      const backtestKey = `${selectedSymbol}:${timeframe}`;
-      const cachedAnalysis = analysisCacheRef.current.get(cacheKey);
-      const cachedBacktest = backtestCacheRef.current.get(backtestKey);
-      if (cachedAnalysis) {
-        setAnalysis(cachedAnalysis);
-        setChartBars(cachedAnalysis.bars);
+      const analysisKey = `${selectedSymbol}:${timeframe}:${bufferPct.toFixed(4)}`;
+      const symbolTimeframeKey = `${selectedSymbol}:${timeframe}`;
+      const cachedBars = chartBarsCacheRef.current.get(symbolTimeframeKey);
+      const cachedAnalysis = analysisCacheRef.current.get(analysisKey);
+      const cachedBacktest = backtestCacheRef.current.get(symbolTimeframeKey);
+
+      if (cachedBars && cachedBars.length > 0) {
+        setChartBars(cachedBars);
       } else {
-        setAnalysis(undefined);
         setChartBars(undefined);
       }
-      if (cachedBacktest) {
-        setBacktest(cachedBacktest);
-      } else {
-        setBacktest(undefined);
-      }
-
-      setDetailsLoading(true);
+      setAnalysis(cachedAnalysis);
+      setBacktest(cachedBacktest);
+      setChartBarsLoading(true);
       setChartStatusMessage("Fetching candlestick history...");
       setChartStatusProgress(chartProgressFromStatus("Fetching candlestick history..."));
       try {
         const marketBarsResponse = await fetchMarketBars(selectedSymbol, timeframe, buildQuickRange(timeframe));
-        if (requestId !== detailRequestIdRef.current) {
+        if (requestId !== barsRequestIdRef.current) {
           return;
         }
+        chartBarsCacheRef.current.set(symbolTimeframeKey, marketBarsResponse.bars);
         setChartBars(marketBarsResponse.bars);
-        setChartStatusMessage("Candlesticks loaded. Preparing chart analysis...");
-        setChartStatusProgress((prev) =>
-          Math.max(prev, chartProgressFromStatus("Candlesticks loaded. Preparing chart analysis..."))
+        setChartStatusMessage(
+          cachedAnalysis ? "Candlesticks loaded. Cached analysis ready." : "Candlesticks loaded. Run analysis when ready."
         );
+        setChartStatusProgress(100);
+        setError(undefined);
       } catch (err) {
-        if (requestId !== detailRequestIdRef.current) {
+        if (requestId !== barsRequestIdRef.current) {
           return;
         }
-        if (!cachedAnalysis) {
+        if (!cachedBars) {
           setError(err instanceof Error ? err.message : "Failed to load chart history.");
         }
-        setChartStatusMessage("Candlestick fetch failed. Continuing with chart analysis...");
-        setChartStatusProgress((prev) => Math.max(prev, chartProgressFromStatus("Preparing chart analysis...")));
-      }
-
-      let statusPollTimer: number | undefined;
-      const clearStatusPolling = () => {
-        if (statusPollTimer) {
-          window.clearInterval(statusPollTimer);
-          statusPollTimer = undefined;
-        }
-      };
-      const pollStatus = async () => {
-        try {
-          const status = await fetchAnalysisStatus(statusRequestId);
-          if (requestId !== detailRequestIdRef.current) {
-            return;
-          }
-          setChartStatusMessage(status.message);
-          setChartStatusProgress((prev) => Math.max(prev, chartProgressFromStatus(status.message)));
-        } catch {
-          // Ignore transient status polling failures while main request is in-flight.
-        }
-      };
-      statusPollTimer = window.setInterval(pollStatus, 450);
-      void pollStatus();
-
-      try {
-        const analysisResponse = await fetchSymbolAnalysisWithRequestId(selectedSymbol, timeframe, bufferPct, statusRequestId);
-        if (requestId !== detailRequestIdRef.current) {
-          clearStatusPolling();
-          return;
-        }
-        clearStatusPolling();
-        analysisCacheRef.current.set(cacheKey, analysisResponse);
-        setChartBars(analysisResponse.bars);
-        setAnalysis(analysisResponse);
-        setError(undefined);
-        setChartStatusMessage("Chart analysis complete.");
-        setChartStatusProgress(100);
-
-        void fetchBacktest(selectedSymbol, timeframe)
-          .then((backtestResponse) => {
-            if (requestId !== detailRequestIdRef.current) {
-              return;
-            }
-            backtestCacheRef.current.set(backtestKey, backtestResponse);
-            setBacktest(backtestResponse);
-          })
-          .catch(() => {
-            // Backtest is secondary; keep chart/scanner responsive even if it stalls.
-          });
-      } catch (err) {
-        if (requestId !== detailRequestIdRef.current) {
-          clearStatusPolling();
-          return;
-        }
-        clearStatusPolling();
-        setError(err instanceof Error ? err.message : "Failed to load details.");
-        setChartStatusMessage("Analysis request failed.");
+        setChartStatusMessage("Candlestick fetch failed.");
         setChartStatusProgress(100);
       } finally {
-        clearStatusPolling();
-      }
-      if (requestId === detailRequestIdRef.current) {
-        setDetailsLoading(false);
+        if (requestId === barsRequestIdRef.current) {
+          setChartBarsLoading(false);
+        }
       }
     };
 
-    loadDetails();
+    loadChartBars();
   }, [selectedSymbol, timeframe, safetyLossBufferPct]);
+
+  const runAnalysis = async () => {
+    if (!selectedSymbol) {
+      return;
+    }
+
+    const requestId = detailRequestIdRef.current + 1;
+    detailRequestIdRef.current = requestId;
+    const statusRequestId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const bufferPct = Math.max(0.1, safetyLossBufferPct) / 100;
+    const analysisKey = `${selectedSymbol}:${timeframe}:${bufferPct.toFixed(4)}`;
+    const symbolTimeframeKey = `${selectedSymbol}:${timeframe}`;
+    const cachedAnalysis = analysisCacheRef.current.get(analysisKey);
+    const cachedBacktest = backtestCacheRef.current.get(symbolTimeframeKey);
+    if (cachedAnalysis) {
+      setAnalysis(cachedAnalysis);
+      setChartBars(cachedAnalysis.bars);
+    }
+    if (cachedBacktest) {
+      setBacktest(cachedBacktest);
+    }
+
+    setDetailsLoading(true);
+    setChartStatusMessage("Preparing chart analysis...");
+    setChartStatusProgress(chartProgressFromStatus("Preparing chart analysis..."));
+    let statusPollTimer: number | undefined;
+    const clearStatusPolling = () => {
+      if (statusPollTimer) {
+        window.clearInterval(statusPollTimer);
+        statusPollTimer = undefined;
+      }
+    };
+    const pollStatus = async () => {
+      try {
+        const status = await fetchAnalysisStatus(statusRequestId);
+        if (requestId !== detailRequestIdRef.current) {
+          return;
+        }
+        setChartStatusMessage(status.message);
+        setChartStatusProgress((prev) => Math.max(prev, chartProgressFromStatus(status.message)));
+      } catch {
+        // Ignore transient status polling failures while main request is in-flight.
+      }
+    };
+    statusPollTimer = window.setInterval(pollStatus, 450);
+    void pollStatus();
+
+    try {
+      const analysisResponse = await fetchSymbolAnalysisWithRequestId(selectedSymbol, timeframe, bufferPct, statusRequestId);
+      if (requestId !== detailRequestIdRef.current) {
+        clearStatusPolling();
+        return;
+      }
+      clearStatusPolling();
+      analysisCacheRef.current.set(analysisKey, analysisResponse);
+      chartBarsCacheRef.current.set(symbolTimeframeKey, analysisResponse.bars);
+      setChartBars(analysisResponse.bars);
+      setAnalysis(analysisResponse);
+      setError(undefined);
+      setChartStatusMessage("Chart analysis complete.");
+      setChartStatusProgress(100);
+
+      void fetchBacktest(selectedSymbol, timeframe)
+        .then((backtestResponse) => {
+          if (requestId !== detailRequestIdRef.current) {
+            return;
+          }
+          backtestCacheRef.current.set(symbolTimeframeKey, backtestResponse);
+          setBacktest(backtestResponse);
+        })
+        .catch(() => {
+          // Keep chart visible if backtest fails or stalls.
+        });
+    } catch (err) {
+      if (requestId !== detailRequestIdRef.current) {
+        clearStatusPolling();
+        return;
+      }
+      clearStatusPolling();
+      setError(err instanceof Error ? err.message : "Failed to run analysis.");
+      setChartStatusMessage("Analysis request failed.");
+      setChartStatusProgress(100);
+    } finally {
+      clearStatusPolling();
+      if (requestId === detailRequestIdRef.current) {
+        setDetailsLoading(false);
+      }
+    }
+  };
+
+  const hideAnalysis = () => {
+    setAnalysis(undefined);
+    setBacktest(undefined);
+    setChartStatusMessage("Candlesticks loaded. Run analysis when ready.");
+    setChartStatusProgress(100);
+  };
 
   useEffect(() => {
     if (viewMode !== "portfolio") {
@@ -542,14 +579,49 @@ export default function App() {
                 style={{ gridTemplateRows: `minmax(0, 1fr) ${SPLITTER_PX}px ${rightBottomPanePx}px` }}
               >
                 <div className="panel chart-panel">
-                  <h2 className="title-with-hint">
-                    {selectedSymbol ? `${selectedSymbol} Chart Inspection` : "Chart Inspection"}
-                    <span className="title-hint">
-                      Candles, volume, trend rays, Action/Safety/Safety-Loss lines, and backtest trade markers.
-                    </span>
-                  </h2>
+                  <div className="chart-panel-head">
+                    <h2 className="title-with-hint">
+                      {selectedSymbol ? `${selectedSymbol} Chart Inspection` : "Chart Inspection"}
+                      <span className="title-hint">
+                        Candles, volume, trend rays, Action/Safety/Safety-Loss lines, and backtest trade markers.
+                      </span>
+                    </h2>
+                    <div className="chart-panel-actions">
+                      <button
+                        type="button"
+                        className="analysis-run-button"
+                        disabled={!selectedSymbol || chartBarsLoading || detailsLoading}
+                        onClick={() => {
+                          void runAnalysis();
+                        }}
+                      >
+                        {detailsLoading ? "Running Analysis..." : "Run Analysis"}
+                      </button>
+                      {analysis && (
+                        <button type="button" className="analysis-clear-button" onClick={hideAnalysis}>
+                          Hide Analysis
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {(chartBarsLoading || detailsLoading) && (
+                    <div className="chart-inline-status" aria-live="polite">
+                      <div
+                        className={`status-progress-track ${chartStatusMessage.toLowerCase().includes("failed") ? "failed" : ""}`}
+                      >
+                        <div
+                          className="status-progress-fill"
+                          style={{ width: `${Math.max(0, Math.min(100, chartStatusProgress))}%` }}
+                        />
+                      </div>
+                      <div className="status-progress-meta">
+                        <span className="status-wave-text">{chartStatusMessage}</span>
+                        <strong>{Math.round(chartStatusProgress)}%</strong>
+                      </div>
+                    </div>
+                  )}
                   <div className="chart-host">
-                    {detailsLoading && !analysis && (!chartBars || chartBars.length === 0) ? (
+                    {chartBarsLoading && (!chartBars || chartBars.length === 0) ? (
                       <div className="chart-loading">
                         <div className="wave-loader" role="status" aria-label="Loading chart analysis">
                           <span className="wave-dot" />
@@ -570,6 +642,10 @@ export default function App() {
                             <strong>{Math.round(chartStatusProgress)}%</strong>
                           </div>
                         </div>
+                      </div>
+                    ) : !chartBars || chartBars.length === 0 ? (
+                      <div className="chart-loading">
+                        <p className="muted">Select a symbol to load chart history.</p>
                       </div>
                     ) : (
                       <SymbolChart analysis={analysis} bars={chartBars} backtestTrades={backtest?.tradeList} />
