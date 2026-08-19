@@ -233,21 +233,28 @@ export default function App() {
       void pollStatus();
 
       try {
-        const [analysisResponse, backtestResponse] = await Promise.all([
-          fetchSymbolAnalysisWithRequestId(selectedSymbol, timeframe, bufferPct, statusRequestId),
-          fetchBacktest(selectedSymbol, timeframe)
-        ]);
+        const analysisResponse = await fetchSymbolAnalysisWithRequestId(selectedSymbol, timeframe, bufferPct, statusRequestId);
         if (requestId !== detailRequestIdRef.current) {
           clearStatusPolling();
           return;
         }
         clearStatusPolling();
         analysisCacheRef.current.set(cacheKey, analysisResponse);
-        backtestCacheRef.current.set(backtestKey, backtestResponse);
         setAnalysis(analysisResponse);
-        setBacktest(backtestResponse);
         setError(undefined);
         setChartStatusMessage("Chart analysis complete.");
+
+        void fetchBacktest(selectedSymbol, timeframe)
+          .then((backtestResponse) => {
+            if (requestId !== detailRequestIdRef.current) {
+              return;
+            }
+            backtestCacheRef.current.set(backtestKey, backtestResponse);
+            setBacktest(backtestResponse);
+          })
+          .catch(() => {
+            // Backtest is secondary; keep chart/scanner responsive even if it stalls.
+          });
       } catch (err) {
         if (requestId !== detailRequestIdRef.current) {
           clearStatusPolling();
