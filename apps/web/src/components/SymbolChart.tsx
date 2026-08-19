@@ -13,10 +13,12 @@ import {
   Time,
   UTCTimestamp
 } from "lightweight-charts";
+import { OhlcvBar } from "@trader/shared";
 import { SymbolAnalysisResponse } from "../types";
 
 interface SymbolChartProps {
   analysis?: SymbolAnalysisResponse;
+  bars?: OhlcvBar[];
   backtestTrades?: Array<{
     entryTime: string;
     exitTime: string;
@@ -71,7 +73,7 @@ function trendlineStyle(line: SymbolAnalysisResponse["trendlines"][number]) {
   return LineStyle.Solid;
 }
 
-export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
+export function SymbolChart({ analysis, bars, backtestTrades }: SymbolChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const cleanupSeriesRef = useRef<
@@ -121,14 +123,19 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
 
   useEffect(() => {
     const chart = chartRef.current;
-    if (!analysis || !chart) {
+    if (!chart) {
       return;
     }
+    const sourceBars = analysis?.bars ?? bars ?? [];
 
     cleanupSeriesRef.current.forEach((series) => chart.removeSeries(series));
     cleanupSeriesRef.current = [];
     markersPluginRef.current?.detach();
     markersPluginRef.current = null;
+
+    if (sourceBars.length === 0) {
+      return;
+    }
 
     const candles = chart.addSeries(CandlestickSeries, {
       upColor: "#1ed67c",
@@ -138,7 +145,7 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
       wickDownColor: "#ff5a7d"
     });
     candles.setData(
-      analysis.bars.map((bar) => ({
+      sourceBars.map((bar) => ({
         time: toUtcTimestamp(bar.timestamp),
         open: bar.open,
         high: bar.high,
@@ -160,7 +167,7 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
       }
     });
     volume.setData(
-      analysis.bars.map((bar) => ({
+      sourceBars.map((bar) => ({
         time: toUtcTimestamp(bar.timestamp),
         value: bar.volume,
         color: bar.close >= bar.open ? "#1ed67c88" : "#ff5a7d88"
@@ -168,21 +175,23 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
     );
     cleanupSeriesRef.current.push(volume);
 
-    for (const line of analysis.trendlines) {
-      const latestTimestamp = analysis.bars[analysis.bars.length - 1]?.timestamp ?? line.endTime;
-      const renderEndTime =
-        new Date(latestTimestamp).getTime() > new Date(line.endTime).getTime() ? latestTimestamp : line.endTime;
-      const renderEndValue = projectLineValueAt(line, renderEndTime);
-      const series = chart.addSeries(LineSeries, {
-        color: trendlineColor(line),
-        lineWidth: line.kind === "CANDIDATE" ? 1 : line.kind === "SAFETY_LOSS" ? 2 : 3,
-        lineStyle: trendlineStyle(line)
-      });
-      series.setData([
-        { time: toUtcTimestamp(line.startTime), value: line.startPrice },
-        { time: toUtcTimestamp(renderEndTime), value: renderEndValue }
-      ]);
-      cleanupSeriesRef.current.push(series);
+    if (analysis) {
+      for (const line of analysis.trendlines) {
+        const latestTimestamp = sourceBars[sourceBars.length - 1]?.timestamp ?? line.endTime;
+        const renderEndTime =
+          new Date(latestTimestamp).getTime() > new Date(line.endTime).getTime() ? latestTimestamp : line.endTime;
+        const renderEndValue = projectLineValueAt(line, renderEndTime);
+        const series = chart.addSeries(LineSeries, {
+          color: trendlineColor(line),
+          lineWidth: line.kind === "CANDIDATE" ? 1 : line.kind === "SAFETY_LOSS" ? 2 : 3,
+          lineStyle: trendlineStyle(line)
+        });
+        series.setData([
+          { time: toUtcTimestamp(line.startTime), value: line.startPrice },
+          { time: toUtcTimestamp(renderEndTime), value: renderEndValue }
+        ]);
+        cleanupSeriesRef.current.push(series);
+      }
     }
 
     const tradeMarkers = (backtestTrades ?? []).flatMap((trade) => [
@@ -202,19 +211,21 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
       }
     ]);
 
-    const lineMarkers = analysis.trendlines
-      .filter((line) => line.kind !== "CANDIDATE")
-      .map((line) => ({
-        time: toUtcTimestamp(line.startTime),
-        position: line.direction === "BEARISH" ? ("aboveBar" as const) : ("belowBar" as const),
-        color: trendlineColor(line),
-        shape: "circle" as const,
-        text: line.kind
-      }));
+    const lineMarkers = analysis
+      ? analysis.trendlines
+          .filter((line) => line.kind !== "CANDIDATE")
+          .map((line) => ({
+            time: toUtcTimestamp(line.startTime),
+            position: line.direction === "BEARISH" ? ("aboveBar" as const) : ("belowBar" as const),
+            color: trendlineColor(line),
+            shape: "circle" as const,
+            text: line.kind
+          }))
+      : [];
 
     markersPluginRef.current = createSeriesMarkers(candles, [...tradeMarkers, ...lineMarkers]);
     chart.timeScale().fitContent();
-  }, [analysis, backtestTrades]);
+  }, [analysis, bars, backtestTrades]);
 
   return <div ref={containerRef} style={{ width: "100%", height: "100%", minHeight: 320 }} />;
 }

@@ -17,6 +17,14 @@ export interface ScannerResponse {
   rows: ScannerRow[];
 }
 
+export interface MarketBarsResponse {
+  symbol: string;
+  timeframe: string;
+  start: string;
+  end: string;
+  bars: OhlcvBar[];
+}
+
 export interface BacktestResponse {
   symbol: string;
   timeframe: string;

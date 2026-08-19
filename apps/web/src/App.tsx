@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ScannerRow, Timeframe } from "@trader/shared";
+import { OhlcvBar, ScannerRow, Timeframe } from "@trader/shared";
 import {
   fetchAnalysisStatus,
   fetchBacktest,
+  fetchMarketBars,
   fetchPortfolioSummary,
   fetchScanner,
   fetchSymbolAnalysisWithRequestId
@@ -23,6 +24,22 @@ const APP_STATE_KEY = "trader-ui-state-v1";
 const SPLITTER_PX = 4;
 const MIN_BOTTOM_PANE_PX = 150;
 const MAX_BOTTOM_PANE_PX = 460;
+
+function buildQuickRange(timeframe: Timeframe) {
+  const end = new Date();
+  const start = new Date(end);
+  const daysByTimeframe: Record<Timeframe, number> = {
+    "1Day": 180,
+    "4Hour": 45,
+    "1Hour": 14,
+    "15Min": 3
+  };
+  start.setDate(end.getDate() - daysByTimeframe[timeframe]);
+  return {
+    start: start.toISOString(),
+    end: end.toISOString()
+  };
+}
 
 function chartProgressFromStatus(message: string): number {
   const normalized = message.trim().toLowerCase();
@@ -94,6 +111,7 @@ export default function App() {
   const [safetyLossBufferPct, setSafetyLossBufferPct] = useState(1);
   const [scannerRows, setScannerRows] = useState<ScannerRow[]>([]);
   const [selectedSymbol, setSelectedSymbol] = useState<string>();
+  const [chartBars, setChartBars] = useState<OhlcvBar[]>();
   const [analysis, setAnalysis] = useState<SymbolAnalysisResponse>();
   const [backtest, setBacktest] = useState<BacktestResponse>();
   const [portfolio, setPortfolio] = useState<PortfolioSummaryResponse>();
@@ -237,14 +255,41 @@ export default function App() {
       const cachedBacktest = backtestCacheRef.current.get(backtestKey);
       if (cachedAnalysis) {
         setAnalysis(cachedAnalysis);
+        setChartBars(cachedAnalysis.bars);
+      } else {
+        setAnalysis(undefined);
+        setChartBars(undefined);
       }
       if (cachedBacktest) {
         setBacktest(cachedBacktest);
+      } else {
+        setBacktest(undefined);
       }
 
       setDetailsLoading(true);
-      setChartStatusMessage("Preparing chart analysis...");
-      setChartStatusProgress(chartProgressFromStatus("Preparing chart analysis..."));
+      setChartStatusMessage("Fetching candlestick history...");
+      setChartStatusProgress(chartProgressFromStatus("Fetching candlestick history..."));
+      try {
+        const marketBarsResponse = await fetchMarketBars(selectedSymbol, timeframe, buildQuickRange(timeframe));
+        if (requestId !== detailRequestIdRef.current) {
+          return;
+        }
+        setChartBars(marketBarsResponse.bars);
+        setChartStatusMessage("Candlesticks loaded. Preparing chart analysis...");
+        setChartStatusProgress((prev) =>
+          Math.max(prev, chartProgressFromStatus("Candlesticks loaded. Preparing chart analysis..."))
+        );
+      } catch (err) {
+        if (requestId !== detailRequestIdRef.current) {
+          return;
+        }
+        if (!cachedAnalysis) {
+          setError(err instanceof Error ? err.message : "Failed to load chart history.");
+        }
+        setChartStatusMessage("Candlestick fetch failed. Continuing with chart analysis...");
+        setChartStatusProgress((prev) => Math.max(prev, chartProgressFromStatus("Preparing chart analysis...")));
+      }
+
       let statusPollTimer: number | undefined;
       const clearStatusPolling = () => {
         if (statusPollTimer) {
@@ -275,6 +320,7 @@ export default function App() {
         }
         clearStatusPolling();
         analysisCacheRef.current.set(cacheKey, analysisResponse);
+        setChartBars(analysisResponse.bars);
         setAnalysis(analysisResponse);
         setError(undefined);
         setChartStatusMessage("Chart analysis complete.");
@@ -503,7 +549,7 @@ export default function App() {
                     </span>
                   </h2>
                   <div className="chart-host">
-                    {detailsLoading && !analysis ? (
+                    {detailsLoading && !analysis && (!chartBars || chartBars.length === 0) ? (
                       <div className="chart-loading">
                         <div className="wave-loader" role="status" aria-label="Loading chart analysis">
                           <span className="wave-dot" />
@@ -526,7 +572,7 @@ export default function App() {
                         </div>
                       </div>
                     ) : (
-                      <SymbolChart analysis={analysis} backtestTrades={backtest?.tradeList} />
+                      <SymbolChart analysis={analysis} bars={chartBars} backtestTrades={backtest?.tradeList} />
                     )}
                   </div>
                 </div>
