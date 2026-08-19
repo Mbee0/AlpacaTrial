@@ -76,7 +76,7 @@ async function request<T>(path: string, timeoutMs = 30000): Promise<T> {
   );
 }
 
-export function fetchScanner(timeframe: string, limit = 12, concurrency = 4) {
+export function fetchScanner(timeframe: string, limit = 8, concurrency = 2) {
   return request<ScannerResponse>(
     `/analysis/scanner?timeframe=${timeframe}&limit=${limit}&concurrency=${concurrency}`
   );
