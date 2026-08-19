@@ -2,22 +2,8 @@ import { BacktestResponse, PortfolioSummaryResponse, ScannerResponse, SymbolAnal
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api";
 
-async function request<T>(path: string, timeoutMs = 30000): Promise<T> {
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
-
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, { signal: controller.signal });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error(`API request timed out after ${Math.round(timeoutMs / 1000)}s.`);
-    }
-    throw error;
-  } finally {
-    window.clearTimeout(timeout);
-  }
-
+async function request<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`);
   if (!response.ok) {
     const body = await response.text();
     throw new Error(`API request failed: ${response.status} ${body}`);
@@ -55,7 +41,7 @@ export function fetchSymbolAnalysisWithRequestId(
 }
 
 export function fetchAnalysisStatus(requestId: string) {
-  return request<AnalysisStatusResponse>(`/analysis/status/${encodeURIComponent(requestId)}`, 2500);
+  return request<AnalysisStatusResponse>(`/analysis/status/${encodeURIComponent(requestId)}`);
 }
 
 export function fetchBacktest(symbol: string, timeframe: string) {
