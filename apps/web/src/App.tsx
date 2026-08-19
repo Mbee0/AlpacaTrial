@@ -22,6 +22,13 @@ const APP_STATE_KEY = "trader-ui-state-v1";
 const SPLITTER_PX = 4;
 const MIN_BOTTOM_PANE_PX = 150;
 const MAX_BOTTOM_PANE_PX = 460;
+const CHART_LOADING_MESSAGES = [
+  "Loading cached market bars...",
+  "Fetching missing history from Alpaca...",
+  "Computing swing points and trend rays...",
+  "Scoring action/safety lines...",
+  "Preparing chart overlays..."
+] as const;
 
 function TaskbarIcon({ viewMode }: { viewMode: ViewMode }) {
   if (viewMode === "dashboard") {
@@ -68,6 +75,7 @@ export default function App() {
   const [scannerLoading, setScannerLoading] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
+  const [chartLoadingStep, setChartLoadingStep] = useState(0);
   const [error, setError] = useState<string>();
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [leftPanePct, setLeftPanePct] = useState(38);
@@ -302,6 +310,21 @@ export default function App() {
     };
   }, [dragMode]);
 
+  useEffect(() => {
+    if (!(detailsLoading && !analysis)) {
+      setChartLoadingStep(0);
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setChartLoadingStep((value) => (value + 1) % CHART_LOADING_MESSAGES.length);
+    }, 1300);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [detailsLoading, analysis]);
+
   return (
     <main className="app app-shell">
       <aside className="taskbar">
@@ -425,6 +448,9 @@ export default function App() {
                           <span className="wave-dot" />
                           <span className="wave-dot" />
                           <span className="wave-dot" />
+                        </div>
+                        <div className="status-wave-text" aria-live="polite">
+                          {CHART_LOADING_MESSAGES[chartLoadingStep]}
                         </div>
                       </div>
                     ) : (

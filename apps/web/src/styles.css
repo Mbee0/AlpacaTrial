@@ -483,6 +483,9 @@ ul {
   border: 1px dashed rgba(162, 187, 230, 0.35);
   display: grid;
   place-items: center;
+  align-content: center;
+  justify-items: center;
+  gap: 0.5rem;
   padding: 0.8rem;
 }
 
@@ -526,6 +529,30 @@ ul {
 
 .wave-dot:nth-child(3) {
   animation-delay: 0.24s;
+}
+
+@keyframes statusWave {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.status-wave-text {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-align: center;
+  color: #c7d7f3;
+  background-image: linear-gradient(90deg, #9fb6de, #e4eeff, #8db6ff, #c6d8f8, #9fb6de);
+  background-size: 220% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: statusWave 2s linear infinite;
 }
 
 .splitter {
