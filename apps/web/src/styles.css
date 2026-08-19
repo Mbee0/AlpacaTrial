@@ -18,41 +18,38 @@ body,
 body {
   margin: 0;
   background:
-    radial-gradient(1200px 600px at 20% -10%, #1b2f55 0%, rgba(14, 20, 34, 0) 60%),
-    radial-gradient(900px 500px at 100% 0%, #2e1b4d 0%, rgba(14, 20, 34, 0) 55%),
-    #070b13;
+    radial-gradient(1200px 600px at 20% -10%, #345891 0%, rgba(32, 47, 74, 0) 60%),
+    radial-gradient(900px 500px at 100% 0%, #4b3f77 0%, rgba(28, 40, 64, 0) 55%),
+    #182437;
   color: #e5e7eb;
   overflow: hidden;
 }
 
 .app {
   height: 100dvh;
-  padding: 0.75rem;
+  padding: 0.55rem;
   display: grid;
   grid-template-columns: 86px minmax(0, 1fr);
-  gap: 0.75rem;
+  gap: 0.55rem;
 }
 
 .taskbar {
-  border: 1px solid rgba(120, 141, 178, 0.26);
-  border-radius: 14px;
-  background: linear-gradient(180deg, rgba(17, 27, 44, 0.94), rgba(11, 18, 32, 0.93));
-  box-shadow: 0 12px 26px rgba(3, 8, 18, 0.35);
+  border: none;
+  border-radius: 0;
+  background: rgba(20, 31, 49, 0.75);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 0.55rem;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
 .taskbar-brand {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  border: 1px solid rgba(147, 197, 253, 0.3);
-  background: linear-gradient(145deg, #1d3c72, #172848);
-  color: #dbeafe;
+  height: 48px;
+  color: #cfe0ff;
   font-weight: 700;
+  letter-spacing: 0.08em;
   display: grid;
   place-items: center;
 }
@@ -60,15 +57,16 @@ body {
 .taskbar-nav {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0;
   width: 100%;
+  flex: 1;
 }
 
 .taskbar-button {
-  border-radius: 12px;
-  border: 1px solid rgba(96, 116, 150, 0.34);
-  background: rgba(15, 23, 42, 0.62);
-  color: #d4e0f6;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #cfdbf2;
   min-height: 72px;
   width: 100%;
   display: flex;
@@ -77,6 +75,7 @@ body {
   justify-content: center;
   gap: 0.2rem;
   cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
 }
 
 .taskbar-button svg {
@@ -87,12 +86,6 @@ body {
 
 .taskbar-button span {
   font-size: 0.69rem;
-}
-
-.taskbar-button.active {
-  background: linear-gradient(155deg, #214278, #1a3156);
-  border-color: rgba(147, 197, 253, 0.5);
-  color: #eef5ff;
 }
 
 .workspace {
@@ -109,10 +102,10 @@ body {
   gap: 1rem;
   align-items: end;
   flex-wrap: wrap;
-  border: 1px solid rgba(148, 163, 184, 0.16);
+  border: 1px solid rgba(173, 188, 220, 0.2);
   border-radius: 14px;
   padding: 0.85rem 1rem;
-  background: linear-gradient(165deg, rgba(26, 36, 56, 0.7), rgba(11, 17, 30, 0.6));
+  background: linear-gradient(165deg, rgba(50, 72, 109, 0.66), rgba(30, 43, 65, 0.66));
 }
 
 .app-header h1 {
@@ -133,8 +126,8 @@ body {
 }
 
 .summary-pill {
-  border: 1px solid rgba(117, 139, 176, 0.35);
-  background: rgba(15, 23, 42, 0.74);
+  border: 1px solid rgba(155, 177, 219, 0.35);
+  background: rgba(44, 62, 95, 0.72);
   border-radius: 999px;
   padding: 0.28rem 0.58rem;
   font-size: 0.75rem;
@@ -145,9 +138,9 @@ select,
 button,
 input {
   border-radius: 6px;
-  border: 1px solid rgba(96, 116, 150, 0.48);
-  background: rgba(15, 23, 42, 0.7);
-  color: #e5e7eb;
+  border: 1px solid rgba(140, 162, 204, 0.5);
+  background: rgba(41, 57, 86, 0.66);
+  color: #edf3ff;
   padding: 0.4rem 0.55rem;
   min-height: 33px;
 }
@@ -162,8 +155,20 @@ button {
 }
 
 button:hover {
-  border-color: #7aa3dc;
-  background: rgba(22, 34, 56, 0.9);
+  border-color: #9fc0f1;
+  background: rgba(69, 92, 133, 0.82);
+}
+
+.taskbar-button:hover {
+  border-color: transparent;
+  background: rgba(83, 115, 162, 0.2);
+}
+
+.taskbar-button.active,
+.taskbar-button.active:hover {
+  background: rgba(80, 122, 185, 0.28);
+  box-shadow: inset 3px 0 0 #93c5fd;
+  color: #eef5ff;
 }
 
 .layout {
@@ -196,8 +201,8 @@ button:hover {
 }
 
 .panel {
-  background: linear-gradient(170deg, rgba(15, 23, 42, 0.9), rgba(13, 20, 34, 0.86));
-  border: 1px solid rgba(95, 117, 156, 0.24);
+  background: linear-gradient(170deg, rgba(37, 52, 79, 0.9), rgba(29, 41, 63, 0.86));
+  border: 1px solid rgba(134, 154, 192, 0.24);
   border-radius: 10px;
   padding: 0.9rem;
   display: flex;
@@ -223,7 +228,7 @@ button:hover {
   min-height: 0;
   overflow: auto;
   border-radius: 8px;
-  border: 1px solid rgba(77, 91, 118, 0.24);
+  border: 1px solid rgba(123, 143, 180, 0.28);
 }
 
 table {
@@ -234,7 +239,7 @@ table {
 
 th,
 td {
-  border-bottom: 1px solid rgba(71, 85, 105, 0.34);
+  border-bottom: 1px solid rgba(113, 131, 164, 0.34);
   padding: 0.38rem;
   text-align: left;
   white-space: nowrap;
@@ -244,7 +249,7 @@ thead th {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: rgba(15, 23, 42, 0.94);
+  background: rgba(45, 62, 95, 0.94);
 }
 
 tr {
@@ -252,11 +257,11 @@ tr {
 }
 
 tr:hover {
-  background: rgba(30, 58, 95, 0.44);
+  background: rgba(82, 118, 177, 0.28);
 }
 
 tr.selected {
-  background: #15243a;
+  background: rgba(90, 131, 194, 0.34);
 }
 
 ul {
@@ -275,9 +280,9 @@ ul {
 }
 
 .score-card {
-  border: 1px solid #243044;
+  border: 1px solid rgba(128, 148, 190, 0.28);
   border-radius: 8px;
-  background: #0f1a2e;
+  background: rgba(44, 60, 90, 0.62);
   padding: 0.5rem;
   display: flex;
   flex-direction: column;
@@ -322,7 +327,7 @@ ul {
   padding: 0.7rem;
   border-radius: 8px;
   border: 1px solid #7f1d1d;
-  background: #2a1010;
+  background: rgba(127, 29, 29, 0.5);
   margin-bottom: 0.8rem;
 }
 
@@ -338,9 +343,9 @@ ul {
 }
 
 .overview-card {
-  border: 1px solid rgba(116, 138, 177, 0.24);
+  border: 1px solid rgba(142, 164, 207, 0.28);
   border-radius: 10px;
-  background: linear-gradient(160deg, rgba(20, 32, 53, 0.8), rgba(11, 17, 29, 0.85));
+  background: linear-gradient(160deg, rgba(53, 76, 116, 0.76), rgba(34, 49, 76, 0.78));
   padding: 0.55rem 0.65rem;
   display: flex;
   flex-direction: column;
@@ -443,7 +448,7 @@ ul {
 
   .taskbar {
     flex-direction: row;
-    padding: 0.55rem;
+    padding: 0;
     align-items: center;
     justify-content: space-between;
   }
@@ -458,7 +463,8 @@ ul {
   .taskbar-button {
     min-height: 56px;
     width: auto;
-    padding: 0 0.8rem;
+    padding: 0 0.75rem;
+    box-shadow: none;
   }
 
   .workspace {
