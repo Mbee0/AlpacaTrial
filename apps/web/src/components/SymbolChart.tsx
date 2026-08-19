@@ -29,6 +29,18 @@ function toUtcTimestamp(timestamp: string): UTCTimestamp {
   return Math.floor(new Date(timestamp).getTime() / 1000) as UTCTimestamp;
 }
 
+function toUtcTimestampOrNull(timestamp: string): UTCTimestamp | null {
+  const value = Math.floor(new Date(timestamp).getTime() / 1000);
+  if (!Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  return value as UTCTimestamp;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
 function formatMarkerPrice(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "—";
 }
@@ -129,95 +141,145 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
       return;
     }
 
-    cleanupSeriesRef.current.forEach((series) => chart.removeSeries(series));
-    cleanupSeriesRef.current = [];
-    markersPluginRef.current?.detach();
-    markersPluginRef.current = null;
+    try {
+      cleanupSeriesRef.current.forEach((series) => chart.removeSeries(series));
+      cleanupSeriesRef.current = [];
+      markersPluginRef.current?.detach();
+      markersPluginRef.current = null;
 
-    const candles = chart.addSeries(CandlestickSeries, {
-      upColor: "#1ed67c",
-      downColor: "#ff5a7d",
-      borderVisible: false,
-      wickUpColor: "#1ed67c",
-      wickDownColor: "#ff5a7d"
-    });
-    candles.setData(
-      analysis.bars.map((bar) => ({
-        time: toUtcTimestamp(bar.timestamp),
-        open: bar.open,
-        high: bar.high,
-        low: bar.low,
-        close: bar.close
-      }))
-    );
-    cleanupSeriesRef.current.push(candles);
+      const candleData = analysis.bars
+        .map((bar) => {
+          const time = toUtcTimestampOrNull(bar.timestamp);
+          if (!time || !isFiniteNumber(bar.open) || !isFiniteNumber(bar.high) || !isFiniteNumber(bar.low) || !isFiniteNumber(bar.close)) {
+            return null;
+          }
+          return {
+            time,
+            open: bar.open,
+            high: bar.high,
+            low: bar.low,
+            close: bar.close
+          };
+        })
+        .filter((bar): bar is NonNullable<typeof bar> => bar !== null);
 
-    const volume = chart.addSeries(HistogramSeries, {
-      color: "#6b8fcf",
-      priceFormat: { type: "volume" },
-      priceScaleId: "volume"
-    });
-    chart.priceScale("volume").applyOptions({
-      scaleMargins: {
-        top: 0.78,
-        bottom: 0
+      if (candleData.length === 0) {
+        return;
       }
-    });
-    volume.setData(
-      analysis.bars.map((bar) => ({
-        time: toUtcTimestamp(bar.timestamp),
-        value: bar.volume,
-        color: bar.close >= bar.open ? "#1ed67c88" : "#ff5a7d88"
-      }))
-    );
-    cleanupSeriesRef.current.push(volume);
 
-    for (const line of analysis.trendlines) {
-      const latestTimestamp = analysis.bars[analysis.bars.length - 1]?.timestamp ?? line.endTime;
-      const renderEndTime =
-        new Date(latestTimestamp).getTime() > new Date(line.endTime).getTime() ? latestTimestamp : line.endTime;
-      const renderEndValue = projectLineValueAt(line, renderEndTime);
-      const series = chart.addSeries(LineSeries, {
-        color: trendlineColor(line),
-        lineWidth: line.kind === "CANDIDATE" ? 1 : line.kind === "SAFETY_LOSS" ? 2 : 3,
-        lineStyle: trendlineStyle(line)
+      const candles = chart.addSeries(CandlestickSeries, {
+        upColor: "#1ed67c",
+        downColor: "#ff5a7d",
+        borderVisible: false,
+        wickUpColor: "#1ed67c",
+        wickDownColor: "#ff5a7d"
       });
-      series.setData([
-        { time: toUtcTimestamp(line.startTime), value: line.startPrice },
-        { time: toUtcTimestamp(renderEndTime), value: renderEndValue }
-      ]);
-      cleanupSeriesRef.current.push(series);
-    }
+      candles.setData(candleData);
+      cleanupSeriesRef.current.push(candles);
 
-    const tradeMarkers = (backtestTrades ?? []).flatMap((trade) => [
-      {
-        time: toUtcTimestamp(trade.entryTime),
-        position: "belowBar" as const,
-        color: "#1ed67c",
-        shape: "arrowUp" as const,
-        text: `Entry ${formatMarkerPrice(trade.entryPrice)}`
-      },
-      {
-        time: toUtcTimestamp(trade.exitTime),
-        position: "aboveBar" as const,
-        color: "#ff5a7d",
-        shape: "arrowDown" as const,
-        text: `Exit ${formatMarkerPrice(trade.exitPrice)}`
+      const volume = chart.addSeries(HistogramSeries, {
+        color: "#6b8fcf",
+        priceFormat: { type: "volume" },
+        priceScaleId: "volume"
+      });
+      chart.priceScale("volume").applyOptions({
+        scaleMargins: {
+          top: 0.78,
+          bottom: 0
+        }
+      });
+      volume.setData(
+        analysis.bars
+          .map((bar) => {
+            const time = toUtcTimestampOrNull(bar.timestamp);
+            if (!time || !isFiniteNumber(bar.volume) || !isFiniteNumber(bar.open) || !isFiniteNumber(bar.close)) {
+              return null;
+            }
+            return {
+              time,
+              value: bar.volume,
+              color: bar.close >= bar.open ? "#1ed67c88" : "#ff5a7d88"
+            };
+          })
+          .filter((bar): bar is NonNullable<typeof bar> => bar !== null)
+      );
+      cleanupSeriesRef.current.push(volume);
+
+      for (const line of analysis.trendlines) {
+        if (!isFiniteNumber(line.startPrice) || !isFiniteNumber(line.endPrice) || !isFiniteNumber(line.slope)) {
+          continue;
+        }
+        const latestTimestamp = analysis.bars[analysis.bars.length - 1]?.timestamp ?? line.endTime;
+        const renderEndTime =
+          new Date(latestTimestamp).getTime() > new Date(line.endTime).getTime() ? latestTimestamp : line.endTime;
+        const renderEndValue = projectLineValueAt(line, renderEndTime);
+        const startTime = toUtcTimestampOrNull(line.startTime);
+        const endTime = toUtcTimestampOrNull(renderEndTime);
+        if (!startTime || !endTime || !isFiniteNumber(renderEndValue)) {
+          continue;
+        }
+
+        const series = chart.addSeries(LineSeries, {
+          color: trendlineColor(line),
+          lineWidth: line.kind === "CANDIDATE" ? 1 : line.kind === "SAFETY_LOSS" ? 2 : 3,
+          lineStyle: trendlineStyle(line)
+        });
+        series.setData([
+          { time: startTime, value: line.startPrice },
+          { time: endTime, value: renderEndValue }
+        ]);
+        cleanupSeriesRef.current.push(series);
       }
-    ]);
 
-    const lineMarkers = analysis.trendlines
-      .filter((line) => line.kind !== "CANDIDATE")
-      .map((line) => ({
-        time: toUtcTimestamp(line.startTime),
-        position: line.direction === "BEARISH" ? ("aboveBar" as const) : ("belowBar" as const),
-        color: trendlineColor(line),
-        shape: "circle" as const,
-        text: line.kind
-      }));
+      const tradeMarkers = (backtestTrades ?? [])
+        .flatMap((trade) => {
+          const entryTime = toUtcTimestampOrNull(trade.entryTime);
+          const exitTime = toUtcTimestampOrNull(trade.exitTime);
+          const markers = [];
+          if (entryTime) {
+            markers.push({
+              time: entryTime,
+              position: "belowBar" as const,
+              color: "#1ed67c",
+              shape: "arrowUp" as const,
+              text: `Entry ${formatMarkerPrice(trade.entryPrice)}`
+            });
+          }
+          if (exitTime) {
+            markers.push({
+              time: exitTime,
+              position: "aboveBar" as const,
+              color: "#ff5a7d",
+              shape: "arrowDown" as const,
+              text: `Exit ${formatMarkerPrice(trade.exitPrice)}`
+            });
+          }
+          return markers;
+        });
 
-    markersPluginRef.current = createSeriesMarkers(candles, [...tradeMarkers, ...lineMarkers]);
-    chart.timeScale().fitContent();
+      const lineMarkers = analysis.trendlines
+        .filter((line) => line.kind !== "CANDIDATE")
+        .map((line) => {
+          const time = toUtcTimestampOrNull(line.startTime);
+          if (!time) {
+            return null;
+          }
+          return {
+            time,
+            position: line.direction === "BEARISH" ? ("aboveBar" as const) : ("belowBar" as const),
+            color: trendlineColor(line),
+            shape: "circle" as const,
+            text: line.kind
+          };
+        })
+        .filter((marker): marker is NonNullable<typeof marker> => marker !== null);
+
+      markersPluginRef.current = createSeriesMarkers(candles, [...tradeMarkers, ...lineMarkers]);
+      chart.timeScale().fitContent();
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error("Chart render failed:", error);
+    }
   }, [analysis, backtestTrades]);
 
   return <div ref={containerRef} style={{ width: "100%", height: "100%", minHeight: 320 }} />;
