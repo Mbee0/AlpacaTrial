@@ -19,6 +19,37 @@ const timeframeOptions: Timeframe[] = ["1Day", "4Hour", "1Hour", "15Min"];
 type ViewMode = "dashboard" | "portfolio" | "help";
 const APP_STATE_KEY = "trader-ui-state-v1";
 
+function TaskbarIcon({ viewMode }: { viewMode: ViewMode }) {
+  if (viewMode === "dashboard") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="3" y="3" width="8" height="8" rx="2" />
+        <rect x="13" y="3" width="8" height="5" rx="2" />
+        <rect x="13" y="10" width="8" height="11" rx="2" />
+        <rect x="3" y="13" width="8" height="8" rx="2" />
+      </svg>
+    );
+  }
+
+  if (viewMode === "portfolio") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 7h16v12H4z" />
+        <path d="M9 7V5h6v2" />
+        <path d="M4 11h16" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.8 9a2.2 2.2 0 1 1 3.6 1.7c-.7.5-1.2 1-1.2 1.9v.4" />
+      <circle cx="12" cy="16.8" r="1" />
+    </svg>
+  );
+}
+
 export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>("dashboard");
   const [timeframe, setTimeframe] = useState<Timeframe>("1Hour");
@@ -202,143 +233,113 @@ export default function App() {
 
   return (
     <main className="app app-shell">
-      <header className="app-header glass">
-        <div>
-          <h1>Trendline Research & Paper-Trading Platform</h1>
-          <p>LIVE TRADING DISABLED · Stage 2 Focus: responsive UI, progressive rays, explainable data dictionary.</p>
-        </div>
-        <div className="header-right">
-          <nav className="menu-tabs">
+      <aside className="taskbar">
+        <div className="taskbar-brand">TT</div>
+        <nav className="taskbar-nav">
+          {(["dashboard", "portfolio", "help"] as ViewMode[]).map((item) => (
             <button
+              key={item}
               type="button"
-              className={viewMode === "dashboard" ? "active" : ""}
-              onClick={() => setViewMode("dashboard")}
+              className={`taskbar-button ${viewMode === item ? "active" : ""}`}
+              onClick={() => setViewMode(item)}
+              title={item}
             >
-              Dashboard
+              <TaskbarIcon viewMode={item} />
+              <span>{item[0].toUpperCase() + item.slice(1)}</span>
             </button>
-            <button
-              type="button"
-              className={viewMode === "portfolio" ? "active" : ""}
-              onClick={() => setViewMode("portfolio")}
-            >
-              Portfolio
-            </button>
-            <button
-              type="button"
-              className={viewMode === "help" ? "active" : ""}
-              onClick={() => setViewMode("help")}
-            >
-              Help
-            </button>
-          </nav>
+          ))}
+        </nav>
+      </aside>
 
-          <div className="controls">
-            <label htmlFor="timeframe">Timeframe</label>
-            <select
-              id="timeframe"
-              value={timeframe}
-              onChange={(event) => setTimeframe(event.target.value as Timeframe)}
-            >
-              {timeframeOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-
-            <label htmlFor="safetyLossBufferPct">Safety-loss %</label>
-            <input
-              id="safetyLossBufferPct"
-              type="number"
-              min={0.1}
-              max={20}
-              step={0.1}
-              value={safetyLossBufferPct}
-              onChange={(event) => setSafetyLossBufferPct(Number(event.target.value) || 1)}
-            />
-
-            <input
-              type="text"
-              value={searchSymbol}
-              placeholder="Search symbol (e.g. AAPL)"
-              onChange={(event) => setSearchSymbol(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  handleSearchSubmit();
-                }
-              }}
-            />
-            <button type="button" onClick={handleSearchSubmit}>
-              Load Symbol
-            </button>
-            <button type="button" onClick={() => setRefreshCounter((value) => value + 1)}>
-              Refresh Scanner
-            </button>
+      <section className="workspace">
+        <header className="app-header glass">
+          <div>
+            <h1>Trendline Research & Paper-Trading Platform</h1>
+            <p>LIVE TRADING DISABLED · Structured analysis + transparent risk controls.</p>
           </div>
-        </div>
-      </header>
+          <div className="top-summary">
+            <span className="summary-pill">Symbol {selectedSymbol ?? "—"}</span>
+            <span className="summary-pill">Signal {selectedSignal?.signal ?? "—"}</span>
+            <span className="summary-pill">Score {selectedSignal ? selectedSignal.score.toFixed(1) : "—"}</span>
+            <span className="summary-pill">Timeframe {timeframe}</span>
+          </div>
+        </header>
 
-      {viewMode === "dashboard" && (
-        <>
-          {error && <div className="error">{error}</div>}
-          {loading && <div className="loading">Loading analysis...</div>}
-          <section className="overview-strip">
-            <article className="overview-card">
-              <span>Selected Symbol</span>
-              <strong>{selectedSymbol ?? "—"}</strong>
-            </article>
-            <article className="overview-card">
-              <span>Signal</span>
-              <strong>{selectedSignal?.signal ?? "—"}</strong>
-            </article>
-            <article className="overview-card">
-              <span>Strategy Score</span>
-              <strong>{selectedSignal ? selectedSignal.score.toFixed(1) : "—"}</strong>
-            </article>
-            <article className="overview-card">
-              <span>Trend</span>
-              <strong>{selectedSignal?.trendDirection ?? "—"}</strong>
-            </article>
-            <article className="overview-card">
-              <span>Backtest Return</span>
-              <strong>{backtest ? `${backtest.totalReturnPct.toFixed(2)}%` : "—"}</strong>
-            </article>
-            <article className="overview-card">
-              <span>Confidence</span>
-              <strong>{selectedSignal ? `${selectedSignal.confidence.toFixed(1)}%` : "—"}</strong>
-            </article>
-          </section>
-          <section className="layout">
-            <div className="left-column">
-              <ScannerTable rows={scannerRows} selectedSymbol={selectedSymbol} onSelectSymbol={handleSelectSymbol} />
-              <SignalExplanation signal={selectedSignal} />
-            </div>
-            <div className="right-column">
-              <div className="panel chart-panel">
-                <h2>{selectedSymbol ? `${selectedSymbol} Chart Inspection` : "Chart Inspection"}</h2>
-                <p className="muted">
-                  Candles, volume, progressive bullish/bearish rays, Action Line, Safety Line, Safety-Loss Line, and backtest trade markers.
-                </p>
-                <div className="chart-host">
-                  <SymbolChart analysis={analysis} backtestTrades={backtest?.tradeList} />
-                </div>
+        {viewMode === "dashboard" && (
+          <>
+            {error && <div className="error">{error}</div>}
+            {loading && <div className="loading">Loading analysis...</div>}
+            <section className="overview-strip">
+              <article className="overview-card">
+                <span>Trend</span>
+                <strong>{selectedSignal?.trendDirection ?? "—"}</strong>
+              </article>
+              <article className="overview-card">
+                <span>Action Line</span>
+                <strong>{selectedSignal?.actionLine?.toFixed(2) ?? "—"}</strong>
+              </article>
+              <article className="overview-card">
+                <span>Safety Line</span>
+                <strong>{selectedSignal?.safetyLine?.toFixed(2) ?? "—"}</strong>
+              </article>
+              <article className="overview-card">
+                <span>Safety-loss</span>
+                <strong>{selectedSignal?.safetyLossLine?.toFixed(2) ?? "—"}</strong>
+              </article>
+              <article className="overview-card">
+                <span>Backtest Return</span>
+                <strong>{backtest ? `${backtest.totalReturnPct.toFixed(2)}%` : "—"}</strong>
+              </article>
+              <article className="overview-card">
+                <span>Confidence</span>
+                <strong>{selectedSignal ? `${selectedSignal.confidence.toFixed(1)}%` : "—"}</strong>
+              </article>
+            </section>
+            <section className="layout">
+              <div className="left-column">
+                <ScannerTable
+                  rows={scannerRows}
+                  selectedSymbol={selectedSymbol}
+                  onSelectSymbol={handleSelectSymbol}
+                  timeframe={timeframe}
+                  timeframeOptions={timeframeOptions}
+                  onTimeframeChange={setTimeframe}
+                  searchSymbol={searchSymbol}
+                  onSearchSymbolChange={setSearchSymbol}
+                  onSearchSubmit={handleSearchSubmit}
+                  safetyLossBufferPct={safetyLossBufferPct}
+                  onSafetyLossBufferPctChange={setSafetyLossBufferPct}
+                  onRefreshScanner={() => setRefreshCounter((value) => value + 1)}
+                />
+                <SignalExplanation signal={selectedSignal} />
               </div>
-              <BacktestSummary backtest={backtest} />
-            </div>
-          </section>
-        </>
-      )}
+              <div className="right-column">
+                <div className="panel chart-panel">
+                  <h2>{selectedSymbol ? `${selectedSymbol} Chart Inspection` : "Chart Inspection"}</h2>
+                  <p className="muted">
+                    Candles, volume, progressive bullish/bearish rays, Action Line, Safety Line, Safety-Loss Line, and backtest trade markers.
+                  </p>
+                  <div className="chart-host">
+                    <SymbolChart analysis={analysis} backtestTrades={backtest?.tradeList} />
+                  </div>
+                </div>
+                <BacktestSummary backtest={backtest} />
+              </div>
+            </section>
+          </>
+        )}
 
-      {viewMode === "portfolio" && (
-        <PortfolioPage
-          data={portfolio}
-          loading={portfolioLoading}
-          error={portfolioError}
-          onSelectSymbol={handleSelectSymbol}
-        />
-      )}
+        {viewMode === "portfolio" && (
+          <PortfolioPage
+            data={portfolio}
+            loading={portfolioLoading}
+            error={portfolioError}
+            onSelectSymbol={handleSelectSymbol}
+          />
+        )}
 
-      {viewMode === "help" && <HelpPage />}
+        {viewMode === "help" && <HelpPage />}
+      </section>
     </main>
   );
 }

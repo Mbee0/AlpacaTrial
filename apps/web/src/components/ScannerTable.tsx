@@ -1,9 +1,18 @@
-import { ScannerRow } from "@trader/shared";
+import { ScannerRow, Timeframe } from "@trader/shared";
 
 interface ScannerTableProps {
   rows: ScannerRow[];
   selectedSymbol?: string;
   onSelectSymbol: (symbol: string) => void;
+  timeframe: Timeframe;
+  timeframeOptions: Timeframe[];
+  onTimeframeChange: (timeframe: Timeframe) => void;
+  searchSymbol: string;
+  onSearchSymbolChange: (value: string) => void;
+  onSearchSubmit: () => void;
+  safetyLossBufferPct: number;
+  onSafetyLossBufferPctChange: (value: number) => void;
+  onRefreshScanner: () => void;
 }
 
 function signalColor(signal: ScannerRow["signal"]) {
@@ -19,13 +28,72 @@ function signalColor(signal: ScannerRow["signal"]) {
   }
 }
 
-export function ScannerTable({ rows, selectedSymbol, onSelectSymbol }: ScannerTableProps) {
+export function ScannerTable({
+  rows,
+  selectedSymbol,
+  onSelectSymbol,
+  timeframe,
+  timeframeOptions,
+  onTimeframeChange,
+  searchSymbol,
+  onSearchSymbolChange,
+  onSearchSubmit,
+  safetyLossBufferPct,
+  onSafetyLossBufferPctChange,
+  onRefreshScanner
+}: ScannerTableProps) {
   return (
     <div className="panel scanner-panel">
       <h2>Market Scanner</h2>
       <p className="muted">
         Ranked symbols with transparent scoring. Click any symbol to inspect trendlines and decision logic.
       </p>
+      <div className="scanner-toolbar">
+        <div className="scanner-search">
+          <input
+            type="text"
+            value={searchSymbol}
+            placeholder="Search symbol (AAPL, NVDA...)"
+            onChange={(event) => onSearchSymbolChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                onSearchSubmit();
+              }
+            }}
+          />
+          <button type="button" onClick={onSearchSubmit}>
+            Load
+          </button>
+        </div>
+        <div className="scanner-controls">
+          <label htmlFor="scanner-timeframe">Timeframe</label>
+          <select
+            id="scanner-timeframe"
+            value={timeframe}
+            onChange={(event) => onTimeframeChange(event.target.value as Timeframe)}
+          >
+            {timeframeOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+
+          <label htmlFor="scanner-safety-loss">Safety-loss %</label>
+          <input
+            id="scanner-safety-loss"
+            type="number"
+            min={0.1}
+            max={20}
+            step={0.1}
+            value={safetyLossBufferPct}
+            onChange={(event) => onSafetyLossBufferPctChange(Number(event.target.value) || 1)}
+          />
+          <button type="button" onClick={onRefreshScanner}>
+            Refresh
+          </button>
+        </div>
+      </div>
       <div className="table-wrap">
         <table>
           <thead>
