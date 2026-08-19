@@ -5,6 +5,7 @@ interface CandidateLine extends Trendline {
   recencyScore: number;
   violationsBeforeEnd: number;
   anchorSpan: number;
+  endBarIndex: number;
 }
 
 function toEpochMs(ts: string) {
@@ -44,8 +45,9 @@ function scoreLine(params: {
   direction: TrendDirection;
   symbol: string;
   timeframe: Timeframe;
+  endBarIndex: number;
 }): CandidateLine | null {
-  const { bars, startPoint, endPoint, direction, symbol, timeframe } = params;
+  const { bars, startPoint, endPoint, direction, symbol, timeframe, endBarIndex } = params;
   const x1 = toEpochMs(startPoint.timestamp);
   const x2 = toEpochMs(endPoint.timestamp);
   if (x2 <= x1) {
@@ -79,13 +81,13 @@ function scoreLine(params: {
     adherenceError += distance;
 
     const referencePrice = direction === "BULLISH" ? bar.low : bar.high;
-    const touchesLine = Math.abs(referencePrice - px) / Math.max(1e-9, bar.close) < 0.0035;
+    const touchesLine = Math.abs(referencePrice - px) / Math.max(1e-9, bar.close) < 0.003;
     if (touchesLine) {
       touches += 1;
     }
 
     const lineViolated =
-      direction === "BULLISH" ? bar.low < px * 0.9975 : direction === "BEARISH" ? bar.high > px * 1.0025 : false;
+      direction === "BULLISH" ? bar.low < px * 0.999 : direction === "BEARISH" ? bar.high > px * 1.001 : false;
     if (lineViolated) {
       violations += 1;
       if (barTime <= x2) {
@@ -114,12 +116,14 @@ function scoreLine(params: {
   const slopePerDay = slope * 86400000;
   const normalizedSlopePenalty = Math.min(14, Math.abs(slopePerDay) * 1.6);
 
+  // Prioritize "many touches + no violations + long valid span", matching manual ray drawing.
   const score =
-    touches * 11 +
-    durationDays * 0.5 +
-    recencyScore * 22 +
-    anchorSpan * 0.45 -
-    violations * 10 -
+    touches * 15 +
+    durationDays * 0.35 +
+    recencyScore * 15 +
+    anchorSpan * 0.7 +
+    endBarIndex * 0.25 -
+    violations * 11 -
     fitError * 30 -
     normalizedSlopePenalty;
 
@@ -139,7 +143,8 @@ function scoreLine(params: {
     fitError,
     recencyScore,
     violationsBeforeEnd,
-    anchorSpan
+    anchorSpan,
+    endBarIndex
   };
 }
 
@@ -191,6 +196,53 @@ function buildInitialAnchor(params: {
   };
 }
 
+function anchorToBarIndex(bars: OhlcvBar[], anchor: SwingPoint) {
+  const ts = toEpochMs(anchor.timestamp);
+  const idx = bars.findIndex((bar) => toEpochMs(bar.timestamp) === ts);
+  return Math.max(0, idx);
+}
+
+function chooseBestEndpoint(params: {
+  bars: OhlcvBar[];
+  startPoint: SwingPoint;
+  direction: Exclude<TrendDirection, "SIDEWAYS">;
+  symbol: string;
+  timeframe: Timeframe;
+  endpointCandidates: Array<{ point: SwingPoint; barIndex: number }>;
+}) {
+  const { bars, startPoint, direction, symbol, timeframe, endpointCandidates } = params;
+  let best: CandidateLine | null = null;
+  for (const candidatePoint of endpointCandidates) {
+    const evaluated = scoreLine({
+      bars,
+      startPoint,
+      endPoint: candidatePoint.point,
+      direction,
+      symbol,
+      timeframe,
+      endBarIndex: candidatePoint.barIndex
+    });
+    if (!evaluated) {
+      continue;
+    }
+
+    if (!best) {
+      best = evaluated;
+      continue;
+    }
+
+    // First criterion: higher touch count. Then prefer farther endpoint. Then better score.
+    if (
+      evaluated.touches > best.touches ||
+      (evaluated.touches === best.touches && evaluated.endBarIndex > best.endBarIndex) ||
+      (evaluated.touches === best.touches && evaluated.endBarIndex === best.endBarIndex && evaluated.score > best.score)
+    ) {
+      best = evaluated;
+    }
+  }
+  return best;
+}
+
 function generateProgressiveRayCandidates(params: {
   symbol: string;
   timeframe: Timeframe;
@@ -212,71 +264,37 @@ function generateProgressiveRayCandidates(params: {
   }
 
   const rays: CandidateLine[] = [];
-  let startIndex = 0;
-  while (startIndex < anchors.length - 1 && rays.length < 8) {
-    let selected: CandidateLine | null = null;
-    let selectedIndex = -1;
+  let startAnchorIndex = 0;
+  while (startAnchorIndex < anchors.length - 1 && rays.length < 16) {
+    const startPoint = anchors[startAnchorIndex];
+    const startBarIndex = anchorToBarIndex(bars, startPoint);
+    const endpointCandidates = anchors
+      .map((point, idx) => ({ point, idx, barIndex: anchorToBarIndex(bars, point) }))
+      .filter((entry) => entry.idx > startAnchorIndex && entry.barIndex > startBarIndex);
 
-    for (let j = startIndex + 1; j < anchors.length; j += 1) {
-      const candidate = scoreLine({
-        bars,
-        startPoint: anchors[startIndex],
-        endPoint: anchors[j],
-        direction,
-        symbol,
-        timeframe
-      });
-      if (!candidate) {
-        continue;
-      }
+    const selected = chooseBestEndpoint({
+      bars,
+      startPoint,
+      direction,
+      symbol,
+      timeframe,
+      endpointCandidates
+    });
 
-      // Favor the furthest valid "touch" so the ray extends as long as possible.
-      if (j > selectedIndex || (j === selectedIndex && selected && candidate.score > selected.score)) {
-        selected = candidate;
-        selectedIndex = j;
-      }
-    }
-
-    if (selected && selectedIndex > startIndex) {
+    if (selected) {
       rays.push(selected);
-      startIndex = selectedIndex;
+      const selectedIndex = anchors.findIndex((anchor) => anchor.timestamp === selected.endTime);
+      if (selectedIndex > startAnchorIndex) {
+        startAnchorIndex = selectedIndex;
+      } else {
+        startAnchorIndex += 1;
+      }
     } else {
-      startIndex += 1;
+      startAnchorIndex += 1;
     }
   }
 
   return rays;
-}
-
-function generateRecentPairCandidates(params: {
-  symbol: string;
-  timeframe: Timeframe;
-  swings: SwingPoint[];
-  bars: OhlcvBar[];
-  direction: Exclude<TrendDirection, "SIDEWAYS">;
-}) {
-  const { symbol, timeframe, swings, bars, direction } = params;
-  const anchorKind = direction === "BULLISH" ? "LOW" : "HIGH";
-  const anchors = swings.filter((swing) => swing.kind === anchorKind).slice(-10);
-  const candidates: CandidateLine[] = [];
-
-  for (let i = 0; i < anchors.length - 1; i += 1) {
-    for (let j = i + 1; j < anchors.length; j += 1) {
-      const candidate = scoreLine({
-        bars,
-        startPoint: anchors[i],
-        endPoint: anchors[j],
-        direction,
-        symbol,
-        timeframe
-      });
-      if (candidate && Number.isFinite(candidate.score)) {
-        candidates.push(candidate);
-      }
-    }
-  }
-
-  return candidates;
 }
 
 export function generateTrendlineCandidates(params: {
@@ -298,15 +316,8 @@ export function generateTrendlineCandidates(params: {
     bars,
     direction
   });
-  const pairwise = generateRecentPairCandidates({
-    symbol,
-    timeframe,
-    swings,
-    bars,
-    direction
-  });
 
-  return dedupeAndSort([...progressive, ...pairwise]);
+  return dedupeAndSort(progressive);
 }
 
 export function pickActionAndSafetyLines(candidates: CandidateLine[]) {

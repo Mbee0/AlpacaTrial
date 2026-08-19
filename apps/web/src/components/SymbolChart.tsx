@@ -61,6 +61,16 @@ function trendlineColor(line: SymbolAnalysisResponse["trendlines"][number]) {
   return "#9ca3af";
 }
 
+function trendlineStyle(line: SymbolAnalysisResponse["trendlines"][number]) {
+  if (line.kind === "CANDIDATE") {
+    return LineStyle.Dashed;
+  }
+  if (line.kind === "SAFETY_LOSS") {
+    return LineStyle.Dotted;
+  }
+  return LineStyle.Solid;
+}
+
 export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -165,8 +175,8 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
       const renderEndValue = projectLineValueAt(line, renderEndTime);
       const series = chart.addSeries(LineSeries, {
         color: trendlineColor(line),
-        lineWidth: line.kind === "CANDIDATE" ? 1 : 3,
-        lineStyle: line.kind === "CANDIDATE" ? LineStyle.Dashed : LineStyle.Solid
+        lineWidth: line.kind === "CANDIDATE" ? 1 : line.kind === "SAFETY_LOSS" ? 2 : 3,
+        lineStyle: trendlineStyle(line)
       });
       series.setData([
         { time: toUtcTimestamp(line.startTime), value: line.startPrice },

@@ -20,16 +20,16 @@ const glossaryRows: Array<{
   {
     metric: "Bullish Rays",
     source: "Calculated from swing lows + first bar low",
-    definition: "Progressive support rays that chain through furthest valid non-intersecting touch points.",
+    definition: "Progressive support rays that chain through touch points while price never pokes below the line before the next touch.",
     formula:
-      "For each start anchor, choose furthest end anchor where no bar-low violates line before end touch."
+      "Start at earliest bar low. For each anchor, test future low anchors and choose the line with highest touches; ties prefer furthest valid endpoint, with no low(line breach) before endpoint."
   },
   {
     metric: "Bearish Rays",
     source: "Calculated from swing highs + top-most stock high",
-    definition: "Progressive resistance rays using the same non-intersection rule.",
+    definition: "Progressive resistance rays that start at the chart’s top-most point and chain forward without pre-touch breaches.",
     formula:
-      "For each start anchor, choose furthest end anchor where no bar-high violates line before end touch."
+      "Start at highest historical high. For each anchor, test future high anchors and choose max-touch line; ties prefer furthest valid endpoint, with no high(line breach) before endpoint."
   },
   {
     metric: "Action Line",

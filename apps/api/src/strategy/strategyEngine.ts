@@ -1,11 +1,7 @@
-import { ScannerRow, ScoreBreakdown, StrategySignal, Timeframe, TrendDirection, Trendline } from "@trader/shared";
+import { ScannerRow, ScoreBreakdown, StrategySignal, Timeframe, Trendline } from "@trader/shared";
 import { OhlcvBar } from "@trader/shared";
 import { detectSwingPoints } from "./swingPoints.js";
-import {
-  detectTrendDirection,
-  generateTrendlineCandidates,
-  pickActionAndSafetyLines
-} from "./trendlines.js";
+import { detectTrendDirection, generateTrendlineCandidates } from "./trendlines.js";
 
 interface SymbolAnalysisResult {
   signal: StrategySignal;
@@ -75,6 +71,20 @@ function classifySignal(params: {
   return "HOLD" as const;
 }
 
+function pickLatestLine(candidates: Trendline[]) {
+  if (candidates.length === 0) {
+    return undefined;
+  }
+
+  return [...candidates].sort((a, b) => {
+    const endDiff = new Date(b.endTime).getTime() - new Date(a.endTime).getTime();
+    if (endDiff !== 0) {
+      return endDiff;
+    }
+    return b.score - a.score;
+  })[0];
+}
+
 export function analyzeSymbol(params: {
   symbol: string;
   timeframe: Timeframe;
@@ -119,7 +129,10 @@ export function analyzeSymbol(params: {
           ? bullishCandidates
           : bearishCandidates;
   const opposingCandidates = activeCandidates === bullishCandidates ? bearishCandidates : bullishCandidates;
-  const { actionLine, safetyLine } = pickActionAndSafetyLines(activeCandidates);
+  const baseAction = pickLatestLine(activeCandidates);
+  const baseSafety = pickLatestLine(opposingCandidates) ?? pickLatestLine(activeCandidates.slice(0, -1));
+  const actionLine = baseAction ? { ...baseAction, kind: "ACTION" as const } : undefined;
+  const safetyLine = baseSafety ? { ...baseSafety, kind: "SAFETY" as const } : undefined;
   const lastBar = bars[bars.length - 1];
   const prevBar = bars[bars.length - 2] ?? lastBar;
 

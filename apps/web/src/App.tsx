@@ -201,8 +201,8 @@ export default function App() {
   };
 
   return (
-    <main className="app">
-      <header className="app-header">
+    <main className="app app-shell">
+      <header className="app-header glass">
         <div>
           <h1>Trendline Research & Paper-Trading Platform</h1>
           <p>LIVE TRADING DISABLED · Stage 2 Focus: responsive UI, progressive rays, explainable data dictionary.</p>
@@ -282,6 +282,32 @@ export default function App() {
         <>
           {error && <div className="error">{error}</div>}
           {loading && <div className="loading">Loading analysis...</div>}
+          <section className="overview-strip">
+            <article className="overview-card">
+              <span>Selected Symbol</span>
+              <strong>{selectedSymbol ?? "—"}</strong>
+            </article>
+            <article className="overview-card">
+              <span>Signal</span>
+              <strong>{selectedSignal?.signal ?? "—"}</strong>
+            </article>
+            <article className="overview-card">
+              <span>Strategy Score</span>
+              <strong>{selectedSignal ? selectedSignal.score.toFixed(1) : "—"}</strong>
+            </article>
+            <article className="overview-card">
+              <span>Trend</span>
+              <strong>{selectedSignal?.trendDirection ?? "—"}</strong>
+            </article>
+            <article className="overview-card">
+              <span>Backtest Return</span>
+              <strong>{backtest ? `${backtest.totalReturnPct.toFixed(2)}%` : "—"}</strong>
+            </article>
+            <article className="overview-card">
+              <span>Confidence</span>
+              <strong>{selectedSignal ? `${selectedSignal.confidence.toFixed(1)}%` : "—"}</strong>
+            </article>
+          </section>
           <section className="layout">
             <div className="left-column">
               <ScannerTable rows={scannerRows} selectedSymbol={selectedSymbol} onSelectSymbol={handleSelectSymbol} />
