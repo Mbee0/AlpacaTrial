@@ -23,6 +23,7 @@ const APP_STATE_KEY = "trader-ui-state-v1";
 const SPLITTER_PX = 4;
 const MIN_BOTTOM_PANE_PX = 150;
 const MAX_BOTTOM_PANE_PX = 460;
+const DETAIL_RETRY_THRESHOLD_MS = 12_000;
 
 function TaskbarIcon({ viewMode }: { viewMode: ViewMode }) {
   if (viewMode === "dashboard") {
@@ -70,6 +71,9 @@ export default function App() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
   const [chartStatusMessage, setChartStatusMessage] = useState("Preparing chart analysis...");
+  const [showDetailRetryPrompt, setShowDetailRetryPrompt] = useState(false);
+  const [detailFetchElapsedSec, setDetailFetchElapsedSec] = useState(0);
+  const [detailRefreshCounter, setDetailRefreshCounter] = useState(0);
   const [error, setError] = useState<string>();
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [leftPanePct, setLeftPanePct] = useState(38);
@@ -211,11 +215,27 @@ export default function App() {
 
       setDetailsLoading(true);
       setChartStatusMessage("Preparing chart analysis...");
+      setShowDetailRetryPrompt(false);
+      setDetailFetchElapsedSec(0);
       let statusPollTimer: number | undefined;
+      let retryPromptTimer: number | undefined;
+      let elapsedTimer: number | undefined;
+      const startedAt = Date.now();
       const clearStatusPolling = () => {
         if (statusPollTimer) {
           window.clearInterval(statusPollTimer);
           statusPollTimer = undefined;
+        }
+      };
+      const clearRequestTimers = () => {
+        clearStatusPolling();
+        if (retryPromptTimer) {
+          window.clearTimeout(retryPromptTimer);
+          retryPromptTimer = undefined;
+        }
+        if (elapsedTimer) {
+          window.clearInterval(elapsedTimer);
+          elapsedTimer = undefined;
         }
       };
       const pollStatus = async () => {
@@ -231,6 +251,18 @@ export default function App() {
       };
       statusPollTimer = window.setInterval(pollStatus, 450);
       void pollStatus();
+      elapsedTimer = window.setInterval(() => {
+        if (requestId !== detailRequestIdRef.current) {
+          return;
+        }
+        setDetailFetchElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
+      }, 1000);
+      retryPromptTimer = window.setTimeout(() => {
+        if (requestId !== detailRequestIdRef.current) {
+          return;
+        }
+        setShowDetailRetryPrompt(true);
+      }, DETAIL_RETRY_THRESHOLD_MS);
 
       try {
         const [analysisResponse, backtestResponse] = await Promise.all([
@@ -238,26 +270,29 @@ export default function App() {
           fetchBacktest(selectedSymbol, timeframe)
         ]);
         if (requestId !== detailRequestIdRef.current) {
-          clearStatusPolling();
+          clearRequestTimers();
           return;
         }
-        clearStatusPolling();
+        clearRequestTimers();
         analysisCacheRef.current.set(cacheKey, analysisResponse);
         backtestCacheRef.current.set(backtestKey, backtestResponse);
         setAnalysis(analysisResponse);
         setBacktest(backtestResponse);
         setError(undefined);
         setChartStatusMessage("Chart analysis complete.");
+        setShowDetailRetryPrompt(false);
+        setDetailFetchElapsedSec(0);
       } catch (err) {
         if (requestId !== detailRequestIdRef.current) {
-          clearStatusPolling();
+          clearRequestTimers();
           return;
         }
-        clearStatusPolling();
+        clearRequestTimers();
         setError(err instanceof Error ? err.message : "Failed to load details.");
         setChartStatusMessage("Analysis request failed.");
+        setShowDetailRetryPrompt(true);
       } finally {
-        clearStatusPolling();
+        clearRequestTimers();
       }
       if (requestId === detailRequestIdRef.current) {
         setDetailsLoading(false);
@@ -265,7 +300,7 @@ export default function App() {
     };
 
     loadDetails();
-  }, [selectedSymbol, timeframe, safetyLossBufferPct]);
+  }, [selectedSymbol, timeframe, safetyLossBufferPct, detailRefreshCounter]);
 
   useEffect(() => {
     if (viewMode !== "portfolio") {
@@ -300,6 +335,12 @@ export default function App() {
 
   const handleSearchSubmit = () => {
     handleSelectSymbol(searchSymbol);
+  };
+
+  const handleRetryDetails = () => {
+    setShowDetailRetryPrompt(false);
+    setDetailFetchElapsedSec(0);
+    setDetailRefreshCounter((value) => value + 1);
   };
 
   useEffect(() => {
@@ -470,6 +511,18 @@ export default function App() {
                       <SymbolChart analysis={analysis} backtestTrades={backtest?.tradeList} />
                     )}
                   </div>
+                  {showDetailRetryPrompt && (
+                    <div className="chart-retry-row">
+                      <span>
+                        {detailsLoading
+                          ? `Still fetching after ${detailFetchElapsedSec}s.`
+                          : "Latest fetch did not complete."}
+                      </span>
+                      <button type="button" className="chart-retry-button" onClick={handleRetryDetails}>
+                        Retry chart fetch
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div
                   className={`splitter splitter-horizontal ${dragMode === "right-horizontal" ? "active" : ""}`}

@@ -502,6 +502,27 @@ ul {
   padding: 0.8rem;
 }
 
+.chart-retry-row {
+  margin-top: 0.45rem;
+  border: 1px solid rgba(141, 171, 222, 0.35);
+  border-radius: var(--ui-radius);
+  background: rgba(46, 64, 92, 0.7);
+  padding: 0.36rem 0.45rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  font-size: 0.76rem;
+  color: #d5e3fa;
+}
+
+.chart-retry-button {
+  min-height: 28px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.72rem;
+  background: #334761;
+}
+
 .panel-loader {
   flex: 1;
   min-height: 120px;
