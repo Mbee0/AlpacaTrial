@@ -1,4 +1,10 @@
-import { BacktestResponse, PortfolioSummaryResponse, ScannerResponse, SymbolAnalysisResponse } from "../types";
+import {
+  BacktestResponse,
+  MarketBarsResponse,
+  PortfolioSummaryResponse,
+  ScannerResponse,
+  SymbolAnalysisResponse
+} from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api";
 
@@ -34,6 +40,10 @@ export function fetchSymbolAnalysis(symbol: string, timeframe: string, safetyLos
   return request<SymbolAnalysisResponse>(
     `/analysis/symbol/${symbol}?timeframe=${timeframe}&safetyLossBufferPct=${safetyLossBufferPct}`
   );
+}
+
+export function fetchMarketBars(symbol: string, timeframe: string) {
+  return request<MarketBarsResponse>(`/market/bars?symbol=${symbol}&timeframe=${timeframe}`);
 }
 
 export interface AnalysisStatusResponse {

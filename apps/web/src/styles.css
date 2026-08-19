@@ -537,6 +537,12 @@ ul {
   color: #d5e3fa;
 }
 
+.chart-analysis-row {
+  margin-top: 0.4rem;
+  font-size: 0.74rem;
+  color: #c8d8f3;
+}
+
 .chart-retry-button {
   min-height: 28px;
   padding: 0.2rem 0.5rem;

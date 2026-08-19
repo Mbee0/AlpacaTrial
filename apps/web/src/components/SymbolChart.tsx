@@ -13,10 +13,11 @@ import {
   Time,
   UTCTimestamp
 } from "lightweight-charts";
-import { SymbolAnalysisResponse } from "../types";
+import { OhlcvBar, Trendline } from "@trader/shared";
 
 interface SymbolChartProps {
-  analysis?: SymbolAnalysisResponse;
+  bars?: OhlcvBar[];
+  trendlines?: Trendline[];
   backtestTrades?: Array<{
     entryTime: string;
     exitTime: string;
@@ -29,13 +30,13 @@ function toUtcTimestamp(timestamp: string): UTCTimestamp {
   return Math.floor(new Date(timestamp).getTime() / 1000) as UTCTimestamp;
 }
 
-function projectLineValueAt(line: SymbolAnalysisResponse["trendlines"][number], timestamp: string) {
+function projectLineValueAt(line: Trendline, timestamp: string) {
   const x1 = new Date(line.startTime).getTime();
   const x = new Date(timestamp).getTime();
   return line.startPrice + line.slope * (x - x1);
 }
 
-function trendlineColor(line: SymbolAnalysisResponse["trendlines"][number]) {
+function trendlineColor(line: Trendline) {
   if (line.kind === "SAFETY_LOSS") {
     return "#fbbf24";
   }
@@ -61,7 +62,7 @@ function trendlineColor(line: SymbolAnalysisResponse["trendlines"][number]) {
   return "#c3d0e5";
 }
 
-function trendlineStyle(line: SymbolAnalysisResponse["trendlines"][number]) {
+function trendlineStyle(line: Trendline) {
   if (line.kind === "CANDIDATE") {
     return LineStyle.Dashed;
   }
@@ -71,7 +72,7 @@ function trendlineStyle(line: SymbolAnalysisResponse["trendlines"][number]) {
   return LineStyle.Solid;
 }
 
-export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
+export function SymbolChart({ bars, trendlines, backtestTrades }: SymbolChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const cleanupSeriesRef = useRef<
@@ -121,7 +122,7 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
 
   useEffect(() => {
     const chart = chartRef.current;
-    if (!analysis || !chart) {
+    if (!bars || bars.length === 0 || !chart) {
       return;
     }
 
@@ -138,7 +139,7 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
       wickDownColor: "#ff5a7d"
     });
     candles.setData(
-      analysis.bars.map((bar) => ({
+      bars.map((bar) => ({
         time: toUtcTimestamp(bar.timestamp),
         open: bar.open,
         high: bar.high,
@@ -160,7 +161,7 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
       }
     });
     volume.setData(
-      analysis.bars.map((bar) => ({
+      bars.map((bar) => ({
         time: toUtcTimestamp(bar.timestamp),
         value: bar.volume,
         color: bar.close >= bar.open ? "#1ed67c88" : "#ff5a7d88"
@@ -168,8 +169,8 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
     );
     cleanupSeriesRef.current.push(volume);
 
-    for (const line of analysis.trendlines) {
-      const latestTimestamp = analysis.bars[analysis.bars.length - 1]?.timestamp ?? line.endTime;
+    for (const line of trendlines ?? []) {
+      const latestTimestamp = bars[bars.length - 1]?.timestamp ?? line.endTime;
       const renderEndTime =
         new Date(latestTimestamp).getTime() > new Date(line.endTime).getTime() ? latestTimestamp : line.endTime;
       const renderEndValue = projectLineValueAt(line, renderEndTime);
@@ -202,7 +203,7 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
       }
     ]);
 
-    const lineMarkers = analysis.trendlines
+    const lineMarkers = (trendlines ?? [])
       .filter((line) => line.kind !== "CANDIDATE")
       .map((line) => ({
         time: toUtcTimestamp(line.startTime),
@@ -214,7 +215,7 @@ export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
 
     markersPluginRef.current = createSeriesMarkers(candles, [...tradeMarkers, ...lineMarkers]);
     chart.timeScale().fitContent();
-  }, [analysis, backtestTrades]);
+  }, [bars, trendlines, backtestTrades]);
 
   return <div ref={containerRef} style={{ width: "100%", height: "100%", minHeight: 320 }} />;
 }
