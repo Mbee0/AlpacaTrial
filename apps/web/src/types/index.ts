@@ -11,14 +11,6 @@ export interface SymbolAnalysisResponse {
   scannerRow: ScannerRow;
 }
 
-export interface MarketBarsResponse {
-  symbol: string;
-  timeframe: string;
-  start: string;
-  end: string;
-  bars: OhlcvBar[];
-}
-
 export interface ScannerResponse {
   timeframe: string;
   count: number;

@@ -13,11 +13,10 @@ import {
   Time,
   UTCTimestamp
 } from "lightweight-charts";
-import { OhlcvBar, Trendline } from "@trader/shared";
+import { SymbolAnalysisResponse } from "../types";
 
 interface SymbolChartProps {
-  bars?: OhlcvBar[];
-  trendlines?: Trendline[];
+  analysis?: SymbolAnalysisResponse;
   backtestTrades?: Array<{
     entryTime: string;
     exitTime: string;
@@ -30,13 +29,13 @@ function toUtcTimestamp(timestamp: string): UTCTimestamp {
   return Math.floor(new Date(timestamp).getTime() / 1000) as UTCTimestamp;
 }
 
-function projectLineValueAt(line: Trendline, timestamp: string) {
+function projectLineValueAt(line: SymbolAnalysisResponse["trendlines"][number], timestamp: string) {
   const x1 = new Date(line.startTime).getTime();
   const x = new Date(timestamp).getTime();
   return line.startPrice + line.slope * (x - x1);
 }
 
-function trendlineColor(line: Trendline) {
+function trendlineColor(line: SymbolAnalysisResponse["trendlines"][number]) {
   if (line.kind === "SAFETY_LOSS") {
     return "#fbbf24";
   }
@@ -62,7 +61,7 @@ function trendlineColor(line: Trendline) {
   return "#c3d0e5";
 }
 
-function trendlineStyle(line: Trendline) {
+function trendlineStyle(line: SymbolAnalysisResponse["trendlines"][number]) {
   if (line.kind === "CANDIDATE") {
     return LineStyle.Dashed;
   }
@@ -72,7 +71,7 @@ function trendlineStyle(line: Trendline) {
   return LineStyle.Solid;
 }
 
-export function SymbolChart({ bars, trendlines, backtestTrades }: SymbolChartProps) {
+export function SymbolChart({ analysis, backtestTrades }: SymbolChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const cleanupSeriesRef = useRef<
@@ -122,7 +121,7 @@ export function SymbolChart({ bars, trendlines, backtestTrades }: SymbolChartPro
 
   useEffect(() => {
     const chart = chartRef.current;
-    if (!bars || bars.length === 0 || !chart) {
+    if (!analysis || !chart) {
       return;
     }
 
@@ -139,7 +138,7 @@ export function SymbolChart({ bars, trendlines, backtestTrades }: SymbolChartPro
       wickDownColor: "#ff5a7d"
     });
     candles.setData(
-      bars.map((bar) => ({
+      analysis.bars.map((bar) => ({
         time: toUtcTimestamp(bar.timestamp),
         open: bar.open,
         high: bar.high,
@@ -161,7 +160,7 @@ export function SymbolChart({ bars, trendlines, backtestTrades }: SymbolChartPro
       }
     });
     volume.setData(
-      bars.map((bar) => ({
+      analysis.bars.map((bar) => ({
         time: toUtcTimestamp(bar.timestamp),
         value: bar.volume,
         color: bar.close >= bar.open ? "#1ed67c88" : "#ff5a7d88"
@@ -169,8 +168,8 @@ export function SymbolChart({ bars, trendlines, backtestTrades }: SymbolChartPro
     );
     cleanupSeriesRef.current.push(volume);
 
-    for (const line of trendlines ?? []) {
-      const latestTimestamp = bars[bars.length - 1]?.timestamp ?? line.endTime;
+    for (const line of analysis.trendlines) {
+      const latestTimestamp = analysis.bars[analysis.bars.length - 1]?.timestamp ?? line.endTime;
       const renderEndTime =
         new Date(latestTimestamp).getTime() > new Date(line.endTime).getTime() ? latestTimestamp : line.endTime;
       const renderEndValue = projectLineValueAt(line, renderEndTime);
@@ -203,7 +202,7 @@ export function SymbolChart({ bars, trendlines, backtestTrades }: SymbolChartPro
       }
     ]);
 
-    const lineMarkers = (trendlines ?? [])
+    const lineMarkers = analysis.trendlines
       .filter((line) => line.kind !== "CANDIDATE")
       .map((line) => ({
         time: toUtcTimestamp(line.startTime),
@@ -215,7 +214,7 @@ export function SymbolChart({ bars, trendlines, backtestTrades }: SymbolChartPro
 
     markersPluginRef.current = createSeriesMarkers(candles, [...tradeMarkers, ...lineMarkers]);
     chart.timeScale().fitContent();
-  }, [bars, trendlines, backtestTrades]);
+  }, [analysis, backtestTrades]);
 
   return <div ref={containerRef} style={{ width: "100%", height: "100%", minHeight: 320 }} />;
 }

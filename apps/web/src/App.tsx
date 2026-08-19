@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { OhlcvBar, ScannerRow, Timeframe } from "@trader/shared";
+import { ScannerRow, Timeframe } from "@trader/shared";
 import {
   fetchAnalysisStatus,
   fetchBacktest,
-  fetchMarketBars,
   fetchPortfolioSummary,
   fetchScanner,
   fetchSymbolAnalysisWithRequestId
@@ -70,7 +69,6 @@ export default function App() {
   const [safetyLossBufferPct, setSafetyLossBufferPct] = useState(1);
   const [scannerRows, setScannerRows] = useState<ScannerRow[]>([]);
   const [selectedSymbol, setSelectedSymbol] = useState<string>();
-  const [chartBars, setChartBars] = useState<OhlcvBar[]>();
   const [analysis, setAnalysis] = useState<SymbolAnalysisResponse>();
   const [backtest, setBacktest] = useState<BacktestResponse>();
   const [portfolio, setPortfolio] = useState<PortfolioSummaryResponse>();
@@ -91,7 +89,6 @@ export default function App() {
   const [rightBottomPanePx, setRightBottomPanePx] = useState(230);
   const [dragMode, setDragMode] = useState<DragMode>(null);
   const scannerCacheRef = useRef<Map<string, ScannerRow[]>>(new Map());
-  const barsCacheRef = useRef<Map<string, OhlcvBar[]>>(new Map());
   const analysisCacheRef = useRef<Map<string, SymbolAnalysisResponse>>(new Map());
   const backtestCacheRef = useRef<Map<string, BacktestResponse>>(new Map());
   const detailRequestIdRef = useRef(0);
@@ -213,20 +210,12 @@ export default function App() {
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       const bufferPct = Math.max(0.1, safetyLossBufferPct) / 100;
-      const barsKey = `${selectedSymbol}:${timeframe}`;
       const cacheKey = `${selectedSymbol}:${timeframe}:${bufferPct.toFixed(4)}`;
       const backtestKey = `${selectedSymbol}:${timeframe}`;
-      const cachedBars = barsCacheRef.current.get(barsKey);
       const cachedAnalysis = analysisCacheRef.current.get(cacheKey);
       const cachedBacktest = backtestCacheRef.current.get(backtestKey);
-      if (cachedBars) {
-        setChartBars(cachedBars);
-      } else {
-        setChartBars(undefined);
-      }
       if (cachedAnalysis) {
         setAnalysis(cachedAnalysis);
-        setChartBars(cachedAnalysis.bars);
       } else {
         setAnalysis(undefined);
       }
@@ -276,6 +265,20 @@ export default function App() {
           // Ignore transient status polling failures while main request is in-flight.
         }
       };
+      statusPollTimer = window.setInterval(pollStatus, 450);
+      void pollStatus();
+      elapsedTimer = window.setInterval(() => {
+        if (requestId !== detailRequestIdRef.current) {
+          return;
+        }
+        setDetailFetchElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
+      }, 1000);
+      retryPromptTimer = window.setTimeout(() => {
+        if (requestId !== detailRequestIdRef.current) {
+          return;
+        }
+        setShowDetailRetryPrompt(true);
+      }, DETAIL_RETRY_THRESHOLD_MS);
 
       void fetchBacktest(selectedSymbol, timeframe)
         .then((backtestResponse) => {
@@ -298,40 +301,6 @@ export default function App() {
         });
 
       try {
-        let barsForChart = cachedBars ?? cachedAnalysis?.bars;
-        if (!barsForChart || barsForChart.length === 0) {
-          setChartStatusMessage("Fetching candlestick history...");
-          const barsResponse = await fetchMarketBars(selectedSymbol, timeframe);
-          if (requestId !== detailRequestIdRef.current) {
-            return;
-          }
-          barsForChart = barsResponse.bars;
-          barsCacheRef.current.set(barsKey, barsForChart);
-          setChartBars(barsForChart);
-        } else {
-          barsCacheRef.current.set(barsKey, barsForChart);
-          setChartBars(barsForChart);
-        }
-        if (!barsForChart || barsForChart.length === 0) {
-          throw new Error(`No historical bars available for ${selectedSymbol} on ${timeframe}.`);
-        }
-
-        setChartStatusMessage("Candles loaded. Computing trendlines...");
-        statusPollTimer = window.setInterval(pollStatus, 450);
-        void pollStatus();
-        elapsedTimer = window.setInterval(() => {
-          if (requestId !== detailRequestIdRef.current) {
-            return;
-          }
-          setDetailFetchElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
-        }, 1000);
-        retryPromptTimer = window.setTimeout(() => {
-          if (requestId !== detailRequestIdRef.current) {
-            return;
-          }
-          setShowDetailRetryPrompt(true);
-        }, DETAIL_RETRY_THRESHOLD_MS);
-
         const analysisResponse = await fetchSymbolAnalysisWithRequestId(
           selectedSymbol,
           timeframe,
@@ -344,9 +313,7 @@ export default function App() {
         }
         clearRequestTimers();
         analysisCacheRef.current.set(cacheKey, analysisResponse);
-        barsCacheRef.current.set(barsKey, analysisResponse.bars);
         setAnalysis(analysisResponse);
-        setChartBars(analysisResponse.bars);
         setError(undefined);
         setChartError(undefined);
         setChartStatusMessage("Chart analysis complete.");
@@ -604,7 +571,7 @@ export default function App() {
                     </span>
                   </h2>
                   <div className="chart-host">
-                    {!chartBars && detailsLoading ? (
+                    {detailsLoading && !analysis ? (
                       <div className="chart-loading">
                         <div className="wave-loader" role="status" aria-label="Loading chart analysis">
                           <span className="wave-dot" />
@@ -615,12 +582,8 @@ export default function App() {
                           {chartStatusMessage}
                         </div>
                       </div>
-                    ) : chartBars && chartBars.length > 0 ? (
-                      <SymbolChart
-                        bars={chartBars}
-                        trendlines={analysis?.trendlines}
-                        backtestTrades={backtest?.tradeList}
-                      />
+                    ) : analysis ? (
+                      <SymbolChart analysis={analysis} backtestTrades={backtest?.tradeList} />
                     ) : (
                       <div className="chart-empty-state">
                         <p>{chartFallbackMessage}</p>
@@ -632,9 +595,6 @@ export default function App() {
                       </div>
                     )}
                   </div>
-                  {detailsLoading && chartBars && chartBars.length > 0 && (
-                    <div className="chart-analysis-row">Chart loaded. {chartStatusMessage}</div>
-                  )}
                   {showDetailRetryPrompt && (
                     <div className="chart-retry-row">
                       <span>
