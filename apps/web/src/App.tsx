@@ -421,10 +421,11 @@ export default function App() {
                   <div className="chart-host">
                     {detailsLoading && !analysis ? (
                       <div className="chart-loading">
-                        <span className="bubble-skeleton" />
-                        <span className="bubble-skeleton short" />
-                        <span className="bubble-skeleton" />
-                        <span className="bubble-skeleton medium" />
+                        <div className="wave-loader" role="status" aria-label="Loading chart analysis">
+                          <span className="wave-dot" />
+                          <span className="wave-dot" />
+                          <span className="wave-dot" />
+                        </div>
                       </div>
                     ) : (
                       <SymbolChart analysis={analysis} backtestTrades={backtest?.tradeList} />
