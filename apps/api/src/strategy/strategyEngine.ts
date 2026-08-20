@@ -31,7 +31,8 @@ interface RayEndpoint {
   index: number;
   timestamp: string;
   price: number;
-  slope: number;
+  slopePerBar: number;
+  slopePerMs: number;
 }
 
 function buildPrimaryRay(params: { symbol: string; timeframe: Timeframe; bars: OhlcvBar[] }) {
@@ -49,29 +50,39 @@ function buildPrimaryRay(params: { symbol: string; timeframe: Timeframe; bars: O
     kind: "LOW",
     strength: 0
   };
-  const pointATime = new Date(pointA.timestamp).getTime();
-  if (!Number.isFinite(pointATime)) {
-    return null;
-  }
-
   let selected: RayEndpoint | null = null;
   let usedFallback = false;
   for (let index = 1; index < bars.length; index += 1) {
     const bar = bars[index];
+    const runBars = index;
+    if (runBars <= 0) {
+      continue;
+    }
+    const rise = bar.low - pointA.price;
+    const slopePerBar = rise / runBars;
+    if (!Number.isFinite(slopePerBar) || slopePerBar < 0) {
+      continue;
+    }
     const barTime = new Date(bar.timestamp).getTime();
-    if (!Number.isFinite(barTime) || barTime <= pointATime) {
+    const pointATime = new Date(pointA.timestamp).getTime();
+    if (!Number.isFinite(pointATime) || !Number.isFinite(barTime) || barTime <= pointATime) {
       continue;
     }
-    const slope = (bar.low - pointA.price) / (barTime - pointATime);
-    if (!Number.isFinite(slope) || slope < 0) {
+    const slopePerMs = (bar.low - pointA.price) / (barTime - pointATime);
+    if (!Number.isFinite(slopePerMs)) {
       continue;
     }
-    if (!selected || slope < selected.slope) {
+    if (
+      !selected ||
+      slopePerBar < selected.slopePerBar - 1e-9 ||
+      (Math.abs(slopePerBar - selected.slopePerBar) <= 1e-9 && index < selected.index)
+    ) {
       selected = {
         index,
         timestamp: bar.timestamp,
         price: bar.low,
-        slope
+        slopePerBar,
+        slopePerMs
       };
     }
   }
@@ -86,16 +97,18 @@ function buildPrimaryRay(params: { symbol: string; timeframe: Timeframe; bars: O
         fallbackIndex = index;
       }
     }
+    const pointATime = new Date(pointA.timestamp).getTime();
     const fallbackTime = new Date(bars[fallbackIndex].timestamp).getTime();
-    const fallbackSlope =
-      Number.isFinite(fallbackTime) && fallbackTime > pointATime
+    const fallbackSlopePerMs =
+      Number.isFinite(pointATime) && Number.isFinite(fallbackTime) && fallbackTime > pointATime
         ? (bars[fallbackIndex].low - pointA.price) / (fallbackTime - pointATime)
         : 0;
     selected = {
       index: fallbackIndex,
       timestamp: bars[fallbackIndex].timestamp,
       price: bars[fallbackIndex].low,
-      slope: Number.isFinite(fallbackSlope) ? fallbackSlope : 0
+      slopePerBar: Math.max(0, (bars[fallbackIndex].low - pointA.price) / Math.max(1, fallbackIndex)),
+      slopePerMs: Number.isFinite(fallbackSlopePerMs) ? fallbackSlopePerMs : 0
     };
   }
 
@@ -112,7 +125,8 @@ function buildPrimaryRay(params: { symbol: string; timeframe: Timeframe; bars: O
     pointA,
     pointB,
     pointAIndex: 0,
-    slope: selected.slope,
+    slopePerBar: selected.slopePerBar,
+    slopePerMs: selected.slopePerMs,
     usedFallback
   };
 }
@@ -311,7 +325,7 @@ export function analyzeSymbol(params: {
     return { signal: fallbackSignal, swings: [], trendlines: [] };
   }
 
-  const { pointA, pointB, pointAIndex, slope, usedFallback } = primaryRay;
+  const { pointA, pointB, pointAIndex, slopePerBar, slopePerMs, usedFallback } = primaryRay;
   const swings: SwingPoint[] = [pointA, pointB];
   const lastBar = bars[bars.length - 1];
   const prevBar = bars[bars.length - 2] ?? lastBar;
@@ -324,7 +338,7 @@ export function analyzeSymbol(params: {
     endTime: pointB.timestamp,
     startPrice: pointA.price,
     endPrice: pointB.price,
-    slope,
+    slope: slopePerMs,
     score: 0,
     touches: 0,
     violations: 0
@@ -358,7 +372,7 @@ export function analyzeSymbol(params: {
     }
   }
 
-  const slopePctPerYear = ((slope * 86400000 * 252) / Math.max(1e-9, pointA.price)) * 100;
+  const slopePctPerYear = ((slopePerMs * 86400000 * 252) / Math.max(1e-9, pointA.price)) * 100;
   const trendStrength = clamp(50 + slopePctPerYear * 0.18, 5, 95);
   const trendlineQuality = clamp(55 + touches * 2.2 - violations * 6.5, 0, 100);
   const breakoutStrength =
@@ -400,7 +414,7 @@ export function analyzeSymbol(params: {
 
   const explanation = [
     `Point A anchored at first bar (${pointA.timestamp.slice(0, 10)}) low ${pointA.price.toFixed(2)}.`,
-    `Point B chosen at ${pointB.timestamp.slice(0, 10)} low ${pointB.price.toFixed(2)} using 0°→90° sweep.`,
+    `Point B chosen at ${pointB.timestamp.slice(0, 10)} low ${pointB.price.toFixed(2)} via minimum non-negative rise/run (${slopePerBar.toFixed(6)} per bar).`,
     usedFallback
       ? "No non-negative slope contact found; fallback selected highest reachable low as Point B."
       : "Point B is the first valid upward-contact candidate (minimum non-negative slope).",

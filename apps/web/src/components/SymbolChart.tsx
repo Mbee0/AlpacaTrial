@@ -228,28 +228,52 @@ export function SymbolChart({ analysis, bars, backtestTrades }: SymbolChartProps
 
       if (analysis) {
         for (const line of analysis.trendlines) {
+          const startTime = toUtcTimestampOrNull(line.startTime);
+          const lineEndTime = toUtcTimestampOrNull(line.endTime);
+          if (!startTime || !lineEndTime || !isFiniteNumber(line.startPrice) || !isFiniteNumber(line.endPrice)) {
+            continue;
+          }
+          if (Number(lineEndTime) <= Number(startTime)) {
+            continue;
+          }
+
           const latestTimestamp = sourceBars[sourceBars.length - 1]?.timestamp ?? line.endTime;
           const renderEndTime =
             new Date(latestTimestamp).getTime() > new Date(line.endTime).getTime() ? latestTimestamp : line.endTime;
-          const renderEndValue = projectLineValueAt(line, renderEndTime);
-          const startTime = toUtcTimestampOrNull(line.startTime);
-          const endTime = toUtcTimestampOrNull(renderEndTime);
-          if (!startTime || !endTime || !isFiniteNumber(line.startPrice) || !isFiniteNumber(renderEndValue)) {
-            continue;
-          }
-          if (Number(endTime) <= Number(startTime)) {
-            continue;
-          }
+          const renderEndUtc = toUtcTimestampOrNull(renderEndTime);
           const series = chart.addSeries(LineSeries, {
             color: trendlineColor(line),
             lineWidth: line.kind === "CANDIDATE" ? 1 : line.kind === "SAFETY_LOSS" ? 2 : 3,
             lineStyle: trendlineStyle(line)
           });
-          series.setData([
+          const lineData: Array<{ time: UTCTimestamp; value: number }> = [
             { time: startTime, value: line.startPrice },
-            { time: endTime, value: renderEndValue }
-          ]);
+            { time: lineEndTime, value: line.endPrice }
+          ];
+          if (renderEndUtc && Number(renderEndUtc) > Number(lineEndTime)) {
+            const renderEndValue = projectLineValueAt(line, renderEndTime);
+            if (isFiniteNumber(renderEndValue)) {
+              lineData.push({ time: renderEndUtc, value: renderEndValue });
+            }
+          }
+          series.setData(lineData);
           cleanupSeriesRef.current.push(series);
+
+          if (line.kind === "ACTION") {
+            const anchorSeries = chart.addSeries(LineSeries, {
+              color: trendlineColor(line),
+              lineVisible: false,
+              pointMarkersVisible: true,
+              pointMarkersRadius: 5,
+              lastValueVisible: false,
+              priceLineVisible: false
+            });
+            anchorSeries.setData([
+              { time: startTime, value: line.startPrice },
+              { time: lineEndTime, value: line.endPrice }
+            ]);
+            cleanupSeriesRef.current.push(anchorSeries);
+          }
         }
       }
 
