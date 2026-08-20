@@ -417,7 +417,7 @@ export function analyzeSymbol(params: {
     `Point B chosen at ${pointB.timestamp.slice(0, 10)} low ${pointB.price.toFixed(2)} via minimum non-negative rise/run (${slopePerBar.toFixed(6)} per bar).`,
     usedFallback
       ? "No non-negative slope contact found; fallback selected highest reachable low as Point B."
-      : "Point B is the first valid upward-contact candidate (minimum non-negative slope).",
+      : "Point B is the first valid upward-contact candidate (minimum non-negative rise/run).",
     `A→B ray slope projects Action Line at ${actionLinePrice.toFixed(2)} (current close ${lastBar.close.toFixed(2)}).`,
     `Safety line derived from Action Line using ${(clampedSafetyLossBuffer * 100).toFixed(2)}% buffer at ${safetyLinePrice.toFixed(2)}.`,
     `Safety-loss line from close with same buffer at ${safetyLossLinePrice.toFixed(2)}.`,

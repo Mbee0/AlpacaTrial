@@ -636,6 +636,68 @@ ul {
   color: #aecdff;
 }
 
+.chart-debug-panel {
+  margin-bottom: 0.45rem;
+  border: 1px solid rgba(129, 156, 200, 0.32);
+  border-radius: 10px;
+  background: rgba(36, 52, 76, 0.5);
+  padding: 0.32rem 0.45rem;
+}
+
+.chart-debug-panel summary {
+  cursor: pointer;
+  font-size: 0.76rem;
+  color: #d5e4ff;
+  user-select: none;
+}
+
+.chart-debug-note {
+  margin: 0.4rem 0 0.45rem;
+  font-size: 0.72rem;
+  color: #b8ccef;
+}
+
+.chart-debug-note code {
+  font-size: 0.7rem;
+}
+
+.chart-debug-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.7rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.7rem;
+  color: #c4d8fb;
+}
+
+.chart-debug-table-wrap {
+  overflow: auto;
+  max-height: 200px;
+  border: 1px solid rgba(128, 154, 194, 0.28);
+  border-radius: 8px;
+}
+
+.chart-debug-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.69rem;
+}
+
+.chart-debug-table th,
+.chart-debug-table td {
+  border-bottom: 1px solid rgba(124, 148, 186, 0.2);
+  padding: 0.24rem 0.35rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.chart-debug-table th {
+  position: sticky;
+  top: 0;
+  background: #23344d;
+  color: #d8e7ff;
+}
+
 .analysis-run-button {
   background: #2b4c77;
   border-color: #6f9add;

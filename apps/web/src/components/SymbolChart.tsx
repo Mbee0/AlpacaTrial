@@ -315,26 +315,8 @@ export function SymbolChart({ analysis, bars, backtestTrades }: SymbolChartProps
             continue;
           }
           if (line.kind === "ACTION") {
-            const pointATime = toUtcTimestampOrNull(line.startTime);
-            const pointBTime = toUtcTimestampOrNull(line.endTime);
-            if (pointATime) {
-              markers.push({
-                time: pointATime,
-                position: "belowBar",
-                color: trendlineColor(line),
-                shape: "circle",
-                text: "A"
-              });
-            }
-            if (pointBTime) {
-              markers.push({
-                time: pointBTime,
-                position: "belowBar",
-                color: trendlineColor(line),
-                shape: "circle",
-                text: "B"
-              });
-            }
+            // A/B visual anchors are rendered as exact coordinate points via
+            // a dedicated line series above; skip candle-relative markers here.
             continue;
           }
           const time = toUtcTimestampOrNull(line.startTime);

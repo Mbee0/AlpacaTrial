@@ -58,15 +58,8 @@ function resolveChartBarsTimeframe(baseTimeframe: Timeframe, preset: ChartRangeP
 }
 
 function resolveChartAggregation(preset: ChartRangePreset): ChartAggregation {
-  if (preset === "5Y") {
-    return "5D";
-  }
-  if (preset === "10Y") {
-    return "2W";
-  }
-  if (preset === "ALL") {
-    return "1M";
-  }
+  // Keep bar spacing exact for anchor geometry calculations and A/B ray visualization.
+  // We rely on coarser server-side timeframes for long ranges instead of post-fetch aggregation.
   return "none";
 }
 
@@ -447,6 +440,34 @@ export default function App() {
     () => chartIntervalLabel(chartBarsTimeframe, chartAggregation),
     [chartBarsTimeframe, chartAggregation]
   );
+  const actionLineForDebug = useMemo(
+    () => analysis?.trendlines.find((line) => line.kind === "ACTION"),
+    [analysis]
+  );
+  const chartDebugRows = useMemo(() => {
+    const bars = chartBars ?? [];
+    if (bars.length <= 12) {
+      return bars;
+    }
+    return [...bars.slice(0, 6), ...bars.slice(-6)];
+  }, [chartBars]);
+  const actionLineDebug = useMemo(() => {
+    if (!actionLineForDebug || !chartBars || chartBars.length === 0) {
+      return undefined;
+    }
+    const pointAIndex = chartBars.findIndex((bar) => bar.timestamp === actionLineForDebug.startTime);
+    const pointBIndex = chartBars.findIndex((bar) => bar.timestamp === actionLineForDebug.endTime);
+    const runBars = pointAIndex >= 0 && pointBIndex >= 0 ? pointBIndex - pointAIndex : undefined;
+    const rise = actionLineForDebug.endPrice - actionLineForDebug.startPrice;
+    const risePerBar = runBars && runBars > 0 ? rise / runBars : undefined;
+    return {
+      pointAIndex,
+      pointBIndex,
+      runBars,
+      rise,
+      risePerBar
+    };
+  }, [actionLineForDebug, chartBars]);
   const strategySettingsKey = useMemo(() => JSON.stringify(strategySettings), [strategySettings]);
   const hasPendingStrategyChanges = useMemo(
     () => JSON.stringify(strategySettingsDraft) !== strategySettingsKey,
@@ -642,7 +663,8 @@ export default function App() {
       const requestId = barsRequestIdRef.current + 1;
       barsRequestIdRef.current = requestId;
       const bufferPct = Math.max(0.1, safetyLossBufferPct) / 100;
-      const analysisKey = `${selectedSymbol}:${timeframe}:${chartRangePreset}:${bufferPct.toFixed(4)}:${chartPriceAdjustment}:${strategySettingsKey}`;
+      const analysisTimeframe = chartBarsTimeframe;
+      const analysisKey = `${selectedSymbol}:${analysisTimeframe}:${chartRangePreset}:${bufferPct.toFixed(4)}:${chartPriceAdjustment}:${strategySettingsKey}`;
       const range = buildRangeForPreset(chartRangePreset);
       const chartBarsCacheKey = `${selectedSymbol}:${chartBarsTimeframe}:${chartRangePreset}:${chartPriceAdjustment}`;
       const symbolTimeframeKey = `${selectedSymbol}:${timeframe}:${chartPriceAdjustment}`;
@@ -716,7 +738,8 @@ export default function App() {
         : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const bufferPct = Math.max(0.1, safetyLossBufferPct) / 100;
     const analysisRange = buildRangeForPreset(chartRangePreset);
-    const analysisKey = `${selectedSymbol}:${timeframe}:${chartRangePreset}:${bufferPct.toFixed(4)}:${chartPriceAdjustment}:${strategySettingsKey}`;
+    const analysisTimeframe = chartBarsTimeframe;
+    const analysisKey = `${selectedSymbol}:${analysisTimeframe}:${chartRangePreset}:${bufferPct.toFixed(4)}:${chartPriceAdjustment}:${strategySettingsKey}`;
     const symbolTimeframeKey = `${selectedSymbol}:${timeframe}:${chartPriceAdjustment}`;
     const cachedAnalysis = analysisCacheRef.current.get(analysisKey);
     const cachedBacktest = backtestCacheRef.current.get(symbolTimeframeKey);
@@ -755,7 +778,7 @@ export default function App() {
     try {
       const analysisResponse = await fetchSymbolAnalysisWithRequestId(
         selectedSymbol,
-        timeframe,
+        analysisTimeframe,
         bufferPct,
         statusRequestId,
         chartPriceAdjustment,
@@ -1113,6 +1136,59 @@ export default function App() {
                     ))}
                   </div>
                   {chartHistoryCoverageNote && <div className="chart-coverage-note">{chartHistoryCoverageNote}</div>}
+                  <details className="chart-debug-panel">
+                    <summary>Chart data debug</summary>
+                    <p className="chart-debug-note">
+                      Bars listed here are the in-memory chart bars currently loaded from <code>/api/market/bars</code>{" "}
+                      (that API may serve from DB cache or fresh source fetch).
+                    </p>
+                    <div className="chart-debug-meta">
+                      <span>Raw bars loaded: {chartBars?.length ?? 0}</span>
+                      <span>Bars displayed: {displayChartBars?.length ?? 0}</span>
+                      <span>Analysis timeframe: {chartBarsTimeframe}</span>
+                    </div>
+                    {actionLineForDebug && (
+                      <div className="chart-debug-meta">
+                        <span>
+                          A: {actionLineForDebug.startTime.slice(0, 10)} @ {formatFixed(actionLineForDebug.startPrice, 4)}
+                        </span>
+                        <span>
+                          B: {actionLineForDebug.endTime.slice(0, 10)} @ {formatFixed(actionLineForDebug.endPrice, 4)}
+                        </span>
+                        <span>Run (bars): {actionLineDebug?.runBars ?? "—"}</span>
+                        <span>Rise: {formatFixed(actionLineDebug?.rise, 6)}</span>
+                        <span>Rise/Run: {formatFixed(actionLineDebug?.risePerBar, 6)}</span>
+                      </div>
+                    )}
+                    {chartDebugRows.length > 0 && (
+                      <div className="chart-debug-table-wrap">
+                        <table className="chart-debug-table">
+                          <thead>
+                            <tr>
+                              <th>Timestamp</th>
+                              <th>Open</th>
+                              <th>High</th>
+                              <th>Low</th>
+                              <th>Close</th>
+                              <th>Volume</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {chartDebugRows.map((bar, index) => (
+                              <tr key={`${bar.timestamp}-${index}`}>
+                                <td>{bar.timestamp}</td>
+                                <td>{formatFixed(bar.open, 4)}</td>
+                                <td>{formatFixed(bar.high, 4)}</td>
+                                <td>{formatFixed(bar.low, 4)}</td>
+                                <td>{formatFixed(bar.close, 4)}</td>
+                                <td>{formatFixed(bar.volume, 0)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </details>
                   {(chartBarsLoading || detailsLoading) && (
                     <div className="chart-inline-status" aria-live="polite">
                       <div
