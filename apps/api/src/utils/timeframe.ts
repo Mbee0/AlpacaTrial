@@ -1,22 +1,29 @@
 import { Timeframe } from "@trader/shared";
-import { Timeframe as PrismaTimeframe } from "@prisma/client";
 
-const timeframeToPrismaMap: Record<Timeframe, PrismaTimeframe> = {
-  "1Day": PrismaTimeframe.ONE_DAY,
-  "4Hour": PrismaTimeframe.FOUR_HOUR,
-  "1Hour": PrismaTimeframe.ONE_HOUR,
-  "15Min": PrismaTimeframe.FIFTEEN_MIN
-};
+const timeframeToPrismaMap = {
+  "1Day": "ONE_DAY",
+  "4Hour": "FOUR_HOUR",
+  "1Hour": "ONE_HOUR",
+  "15Min": "FIFTEEN_MIN"
+} as const satisfies Record<Timeframe, string>;
+
+export type PrismaTimeframe = (typeof timeframeToPrismaMap)[Timeframe];
+
+const validTimeframes: Timeframe[] = ["1Day", "4Hour", "1Hour", "15Min"];
+
+function normalizeTimeframe(raw: string): string {
+  return raw.trim().replace(/;+$/g, "");
+}
 
 export function timeframeToPrisma(timeframe: Timeframe): PrismaTimeframe {
   return timeframeToPrismaMap[timeframe];
 }
 
 export function parseTimeframe(value: string): Timeframe {
-  const valid: Timeframe[] = ["1Day", "4Hour", "1Hour", "15Min"];
-  if (!valid.includes(value as Timeframe)) {
+  const normalized = normalizeTimeframe(value);
+  if (!validTimeframes.includes(normalized as Timeframe)) {
     throw new Error(`Unsupported timeframe: ${value}`);
   }
 
-  return value as Timeframe;
+  return normalized as Timeframe;
 }
