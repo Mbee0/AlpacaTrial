@@ -215,6 +215,14 @@ button:hover {
   min-width: 0;
 }
 
+.left-bottom-stack {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(170px, auto) minmax(0, 1fr);
+  gap: var(--ui-gap);
+  overflow: hidden;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -528,6 +536,36 @@ ul {
 
 .scanner-panel {
   flex: 1;
+}
+
+.strategy-settings-panel {
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.strategy-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem 0.5rem;
+}
+
+.strategy-grid label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.strategy-grid input {
+  min-width: 0;
+}
+
+.strategy-actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .signal-panel {

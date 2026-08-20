@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { OhlcvBar, PriceAdjustment, ScannerRow, Timeframe } from "@trader/shared";
+import {
+  DEFAULT_STRATEGY_SETTINGS,
+  OhlcvBar,
+  PriceAdjustment,
+  ScannerRow,
+  StrategySettings,
+  Timeframe
+} from "@trader/shared";
 import {
   fetchAnalysisStatus,
   fetchBacktest,
@@ -13,6 +20,7 @@ import { HelpPage } from "./components/HelpPage";
 import { PortfolioPage } from "./components/PortfolioPage";
 import { ScannerTable, type ScannerTab } from "./components/ScannerTable";
 import { SignalExplanation } from "./components/SignalExplanation";
+import { StrategySettingsPanel } from "./components/StrategySettingsPanel";
 import { SymbolChart } from "./components/SymbolChart";
 import { BacktestResponse, PortfolioSummaryResponse, SymbolAnalysisResponse } from "./types";
 import "./styles.css";
@@ -225,6 +233,44 @@ function formatFixed(value: unknown, digits: number): string {
   return numberValue.toFixed(digits);
 }
 
+function normalizeStrategySettings(input?: Partial<StrategySettings>): StrategySettings {
+  const valueOr = (value: unknown, fallback: number) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  return {
+    weights: {
+      trendStrength: valueOr(input?.weights?.trendStrength, DEFAULT_STRATEGY_SETTINGS.weights.trendStrength),
+      trendlineQuality: valueOr(input?.weights?.trendlineQuality, DEFAULT_STRATEGY_SETTINGS.weights.trendlineQuality),
+      breakoutStrength: valueOr(input?.weights?.breakoutStrength, DEFAULT_STRATEGY_SETTINGS.weights.breakoutStrength),
+      volumeConfirmation: valueOr(
+        input?.weights?.volumeConfirmation,
+        DEFAULT_STRATEGY_SETTINGS.weights.volumeConfirmation
+      ),
+      multiTimeframeAlignment: valueOr(
+        input?.weights?.multiTimeframeAlignment,
+        DEFAULT_STRATEGY_SETTINGS.weights.multiTimeframeAlignment
+      ),
+      volatilitySuitability: valueOr(
+        input?.weights?.volatilitySuitability,
+        DEFAULT_STRATEGY_SETTINGS.weights.volatilitySuitability
+      ),
+      riskReward: valueOr(input?.weights?.riskReward, DEFAULT_STRATEGY_SETTINGS.weights.riskReward)
+    },
+    thresholds: {
+      longScore: valueOr(input?.thresholds?.longScore, DEFAULT_STRATEGY_SETTINGS.thresholds.longScore),
+      shortScore: valueOr(input?.thresholds?.shortScore, DEFAULT_STRATEGY_SETTINGS.thresholds.shortScore),
+      breakoutScore: valueOr(input?.thresholds?.breakoutScore, DEFAULT_STRATEGY_SETTINGS.thresholds.breakoutScore),
+      watchScore: valueOr(input?.thresholds?.watchScore, DEFAULT_STRATEGY_SETTINGS.thresholds.watchScore),
+      watchConfidencePenalty: valueOr(
+        input?.thresholds?.watchConfidencePenalty,
+        DEFAULT_STRATEGY_SETTINGS.thresholds.watchConfidencePenalty
+      )
+    }
+  };
+}
+
 function scannerPlaceholderRow(symbol: string, timeframe: Timeframe): ScannerRow {
   return {
     symbol,
@@ -319,6 +365,8 @@ export default function App() {
   const [testSymbols, setTestSymbols] = useState<string[]>([]);
   const [savedSymbols, setSavedSymbols] = useState<string[]>([]);
   const [safetyLossBufferPct, setSafetyLossBufferPct] = useState(1);
+  const [strategySettings, setStrategySettings] = useState<StrategySettings>(DEFAULT_STRATEGY_SETTINGS);
+  const [strategySettingsDraft, setStrategySettingsDraft] = useState<StrategySettings>(DEFAULT_STRATEGY_SETTINGS);
   const [chartPriceAdjustment, setChartPriceAdjustment] = useState<PriceAdjustment>("split");
   const [marketScannerRows, setMarketScannerRows] = useState<ScannerRow[]>([]);
   const [testScannerRows, setTestScannerRows] = useState<ScannerRow[]>([]);
@@ -399,6 +447,11 @@ export default function App() {
     () => chartIntervalLabel(chartBarsTimeframe, chartAggregation),
     [chartBarsTimeframe, chartAggregation]
   );
+  const strategySettingsKey = useMemo(() => JSON.stringify(strategySettings), [strategySettings]);
+  const hasPendingStrategyChanges = useMemo(
+    () => JSON.stringify(strategySettingsDraft) !== strategySettingsKey,
+    [strategySettingsDraft, strategySettingsKey]
+  );
   const isSelectedSymbolSaved = Boolean(selectedSymbol && savedSymbols.includes(selectedSymbol));
 
   useEffect(() => {
@@ -412,6 +465,7 @@ export default function App() {
         timeframe?: Timeframe;
         selectedSymbol?: string;
         safetyLossBufferPct?: number;
+        strategySettings?: StrategySettings;
         chartPriceAdjustment?: PriceAdjustment;
         marketScannerRows?: ScannerRow[];
         scannerActiveTab?: ScannerTab;
@@ -430,6 +484,11 @@ export default function App() {
       }
       if (typeof parsed.safetyLossBufferPct === "number" && Number.isFinite(parsed.safetyLossBufferPct)) {
         setSafetyLossBufferPct(parsed.safetyLossBufferPct);
+      }
+      if (parsed.strategySettings) {
+        const normalized = normalizeStrategySettings(parsed.strategySettings);
+        setStrategySettings(normalized);
+        setStrategySettingsDraft(normalized);
       }
       if (
         parsed.chartPriceAdjustment === "raw" ||
@@ -470,6 +529,7 @@ export default function App() {
       timeframe,
       selectedSymbol,
       safetyLossBufferPct,
+      strategySettings,
       chartPriceAdjustment,
       scannerActiveTab,
       testSymbols: testSymbols.slice(0, 80),
@@ -484,6 +544,7 @@ export default function App() {
     timeframe,
     selectedSymbol,
     safetyLossBufferPct,
+    strategySettings,
     chartPriceAdjustment,
     scannerActiveTab,
     testSymbols,
@@ -497,7 +558,7 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     const loadScanners = async () => {
-      const cacheKey = timeframe;
+      const cacheKey = `${timeframe}:${strategySettingsKey}`;
       const cachedMarketRows = marketScannerCacheRef.current.get(cacheKey);
       if (cachedMarketRows && cachedMarketRows.length > 0 && refreshCounter === 0) {
         setMarketScannerRows(cachedMarketRows);
@@ -506,7 +567,7 @@ export default function App() {
 
       setMarketScannerLoading(true);
       try {
-        const scanner = await fetchScanner(timeframe);
+        const scanner = await fetchScanner(timeframe, { strategySettings });
         if (cancelled) {
           return;
         }
@@ -539,7 +600,8 @@ export default function App() {
         try {
           const scanner = await fetchScanner(timeframe, {
             symbols,
-            limit: Math.max(symbols.length, 20)
+            limit: Math.max(symbols.length, 20),
+            strategySettings
           });
           if (cancelled) {
             return;
@@ -569,7 +631,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [timeframe, refreshCounter, testSymbols, savedSymbols, scannerActiveTab]);
+  }, [timeframe, refreshCounter, testSymbols, savedSymbols, scannerActiveTab, strategySettings, strategySettingsKey]);
 
   useEffect(() => {
     if (!selectedSymbol) {
@@ -580,7 +642,7 @@ export default function App() {
       const requestId = barsRequestIdRef.current + 1;
       barsRequestIdRef.current = requestId;
       const bufferPct = Math.max(0.1, safetyLossBufferPct) / 100;
-      const analysisKey = `${selectedSymbol}:${timeframe}:${bufferPct.toFixed(4)}:${chartPriceAdjustment}`;
+      const analysisKey = `${selectedSymbol}:${timeframe}:${bufferPct.toFixed(4)}:${chartPriceAdjustment}:${strategySettingsKey}`;
       const range = buildRangeForPreset(chartRangePreset);
       const chartBarsCacheKey = `${selectedSymbol}:${chartBarsTimeframe}:${chartRangePreset}:${chartPriceAdjustment}`;
       const symbolTimeframeKey = `${selectedSymbol}:${timeframe}:${chartPriceAdjustment}`;
@@ -631,7 +693,15 @@ export default function App() {
     };
 
     loadChartBars();
-  }, [selectedSymbol, timeframe, chartRangePreset, chartBarsTimeframe, chartAggregation, chartPriceAdjustment]);
+  }, [
+    selectedSymbol,
+    timeframe,
+    chartRangePreset,
+    chartBarsTimeframe,
+    chartAggregation,
+    chartPriceAdjustment,
+    strategySettingsKey
+  ]);
 
   const runAnalysis = async () => {
     if (!selectedSymbol) {
@@ -645,7 +715,7 @@ export default function App() {
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const bufferPct = Math.max(0.1, safetyLossBufferPct) / 100;
-    const analysisKey = `${selectedSymbol}:${timeframe}:${bufferPct.toFixed(4)}:${chartPriceAdjustment}`;
+    const analysisKey = `${selectedSymbol}:${timeframe}:${bufferPct.toFixed(4)}:${chartPriceAdjustment}:${strategySettingsKey}`;
     const symbolTimeframeKey = `${selectedSymbol}:${timeframe}:${chartPriceAdjustment}`;
     const cachedAnalysis = analysisCacheRef.current.get(analysisKey);
     const cachedBacktest = backtestCacheRef.current.get(symbolTimeframeKey);
@@ -687,7 +757,8 @@ export default function App() {
         timeframe,
         bufferPct,
         statusRequestId,
-        chartPriceAdjustment
+        chartPriceAdjustment,
+        strategySettings
       );
       if (requestId !== detailRequestIdRef.current) {
         clearStatusPolling();
@@ -768,6 +839,19 @@ export default function App() {
 
   const handleSearchSubmit = () => {
     handleSelectSymbol(searchSymbol);
+  };
+
+  const handleApplyStrategySettings = () => {
+    const normalized = normalizeStrategySettings(strategySettingsDraft);
+    setStrategySettings(normalized);
+    setStrategySettingsDraft(normalized);
+    marketScannerCacheRef.current.clear();
+    setAnalysis(undefined);
+    setRefreshCounter((value) => value + 1);
+  };
+
+  const handleResetStrategySettings = () => {
+    setStrategySettingsDraft(DEFAULT_STRATEGY_SETTINGS);
   };
 
   const handleAddTestSymbol = () => {
@@ -934,7 +1018,16 @@ export default function App() {
                 >
                   <span className="splitter-handle" aria-hidden="true" />
                 </div>
-                <SignalExplanation signal={selectedSignal} loading={detailsLoading && !selectedSignal} />
+                <div className="left-bottom-stack">
+                  <StrategySettingsPanel
+                    draft={strategySettingsDraft}
+                    hasPendingChanges={hasPendingStrategyChanges}
+                    onDraftChange={setStrategySettingsDraft}
+                    onApply={handleApplyStrategySettings}
+                    onReset={handleResetStrategySettings}
+                  />
+                  <SignalExplanation signal={selectedSignal} loading={detailsLoading && !selectedSignal} />
+                </div>
               </div>
               <div
                 className={`splitter splitter-vertical ${dragMode === "vertical" ? "active" : ""}`}

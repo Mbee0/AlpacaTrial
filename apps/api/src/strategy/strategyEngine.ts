@@ -1,4 +1,13 @@
-import { ScannerRow, ScoreBreakdown, StrategySignal, Timeframe, Trendline } from "@trader/shared";
+import {
+  DEFAULT_STRATEGY_SETTINGS,
+  ScannerRow,
+  ScoreBreakdown,
+  StrategySettings,
+  StrategySettingsInput,
+  StrategySignal,
+  Timeframe,
+  Trendline
+} from "@trader/shared";
 import { OhlcvBar } from "@trader/shared";
 import { detectSwingPoints } from "./swingPoints.js";
 import { detectTrendDirection, generateTrendlineCandidates } from "./trendlines.js";
@@ -19,7 +28,66 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
+function resolveStrategySettings(settings?: StrategySettingsInput): StrategySettings {
+  const normalizedNumber = (value: unknown, fallback: number, min = 0, max = 100) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? clamp(parsed, min, max) : fallback;
+  };
+  const mergedWeights = {
+    ...DEFAULT_STRATEGY_SETTINGS.weights,
+    ...(settings?.weights ?? {})
+  };
+  const mergedThresholds = {
+    ...DEFAULT_STRATEGY_SETTINGS.thresholds,
+    ...(settings?.thresholds ?? {})
+  };
+
+  return {
+    weights: {
+      trendStrength: normalizedNumber(
+        mergedWeights.trendStrength,
+        DEFAULT_STRATEGY_SETTINGS.weights.trendStrength
+      ),
+      trendlineQuality: normalizedNumber(
+        mergedWeights.trendlineQuality,
+        DEFAULT_STRATEGY_SETTINGS.weights.trendlineQuality
+      ),
+      breakoutStrength: normalizedNumber(
+        mergedWeights.breakoutStrength,
+        DEFAULT_STRATEGY_SETTINGS.weights.breakoutStrength
+      ),
+      volumeConfirmation: normalizedNumber(
+        mergedWeights.volumeConfirmation,
+        DEFAULT_STRATEGY_SETTINGS.weights.volumeConfirmation
+      ),
+      multiTimeframeAlignment: normalizedNumber(
+        mergedWeights.multiTimeframeAlignment,
+        DEFAULT_STRATEGY_SETTINGS.weights.multiTimeframeAlignment
+      ),
+      volatilitySuitability: normalizedNumber(
+        mergedWeights.volatilitySuitability,
+        DEFAULT_STRATEGY_SETTINGS.weights.volatilitySuitability
+      ),
+      riskReward: normalizedNumber(mergedWeights.riskReward, DEFAULT_STRATEGY_SETTINGS.weights.riskReward)
+    },
+    thresholds: {
+      longScore: normalizedNumber(mergedThresholds.longScore, DEFAULT_STRATEGY_SETTINGS.thresholds.longScore),
+      shortScore: normalizedNumber(mergedThresholds.shortScore, DEFAULT_STRATEGY_SETTINGS.thresholds.shortScore),
+      breakoutScore: normalizedNumber(
+        mergedThresholds.breakoutScore,
+        DEFAULT_STRATEGY_SETTINGS.thresholds.breakoutScore
+      ),
+      watchScore: normalizedNumber(mergedThresholds.watchScore, DEFAULT_STRATEGY_SETTINGS.thresholds.watchScore),
+      watchConfidencePenalty: normalizedNumber(
+        mergedThresholds.watchConfidencePenalty,
+        DEFAULT_STRATEGY_SETTINGS.thresholds.watchConfidencePenalty
+      )
+    }
+  };
+}
+
 function scoreSignal(params: {
+  settings: StrategySettings;
   trendStrength: number;
   trendlineQuality: number;
   breakoutStrength: number;
@@ -38,14 +106,26 @@ function scoreSignal(params: {
     riskReward: clamp(params.riskReward, 0, 100)
   };
 
+  const weights = params.settings.weights;
+  const weightTotal = Math.max(
+    1e-9,
+    weights.trendStrength +
+      weights.trendlineQuality +
+      weights.breakoutStrength +
+      weights.volumeConfirmation +
+      weights.multiTimeframeAlignment +
+      weights.volatilitySuitability +
+      weights.riskReward
+  );
   const score =
-    breakdown.trendStrength * 0.22 +
-    breakdown.trendlineQuality * 0.2 +
-    breakdown.breakoutStrength * 0.18 +
-    breakdown.volumeConfirmation * 0.1 +
-    breakdown.multiTimeframeAlignment * 0.12 +
-    breakdown.volatilitySuitability * 0.08 +
-    breakdown.riskReward * 0.1;
+    (breakdown.trendStrength * weights.trendStrength +
+      breakdown.trendlineQuality * weights.trendlineQuality +
+      breakdown.breakoutStrength * weights.breakoutStrength +
+      breakdown.volumeConfirmation * weights.volumeConfirmation +
+      breakdown.multiTimeframeAlignment * weights.multiTimeframeAlignment +
+      breakdown.volatilitySuitability * weights.volatilitySuitability +
+      breakdown.riskReward * weights.riskReward) /
+    weightTotal;
 
   return {
     score: clamp(score, 0, 100),
@@ -54,18 +134,27 @@ function scoreSignal(params: {
 }
 
 function classifySignal(params: {
+  settings: StrategySettings;
   trendDirection: StrategySignal["trendDirection"];
   score: number;
   breakoutStrength: number;
 }) {
-  const { trendDirection, score, breakoutStrength } = params;
-  if (trendDirection === "BULLISH" && score >= 70 && breakoutStrength >= 55) {
+  const { trendDirection, score, breakoutStrength, settings } = params;
+  if (
+    trendDirection === "BULLISH" &&
+    score >= settings.thresholds.longScore &&
+    breakoutStrength >= settings.thresholds.breakoutScore
+  ) {
     return "LONG" as const;
   }
-  if (trendDirection === "BEARISH" && score >= 72 && breakoutStrength >= 55) {
+  if (
+    trendDirection === "BEARISH" &&
+    score >= settings.thresholds.shortScore &&
+    breakoutStrength >= settings.thresholds.breakoutScore
+  ) {
     return "SHORT" as const;
   }
-  if (score >= 55) {
+  if (score >= settings.thresholds.watchScore) {
     return "WATCH" as const;
   }
   return "HOLD" as const;
@@ -91,8 +180,17 @@ export function analyzeSymbol(params: {
   bars: OhlcvBar[];
   higherTimeframeDirection?: "BULLISH" | "BEARISH" | "SIDEWAYS";
   safetyLossBufferPct?: number;
+  strategySettings?: StrategySettingsInput;
 }): SymbolAnalysisResult {
-  const { symbol, timeframe, bars, higherTimeframeDirection, safetyLossBufferPct = 0.01 } = params;
+  const {
+    symbol,
+    timeframe,
+    bars,
+    higherTimeframeDirection,
+    safetyLossBufferPct = 0.01,
+    strategySettings
+  } = params;
+  const resolvedSettings = resolveStrategySettings(strategySettings);
   const swings = detectSwingPoints({ symbol, timeframe, bars });
   let trendDirection = detectTrendDirection(swings);
   const bullishCandidates = generateTrendlineCandidates({
@@ -170,6 +268,7 @@ export function analyzeSymbol(params: {
     riskPerShare && riskPerShare > 0 ? clamp((rewardProxy / riskPerShare) * 50, 10, 95) : 40;
 
   const { score, breakdown } = scoreSignal({
+    settings: resolvedSettings,
     trendStrength,
     trendlineQuality,
     breakoutStrength,
@@ -179,8 +278,12 @@ export function analyzeSymbol(params: {
     riskReward
   });
 
-  const signalType = classifySignal({ trendDirection, score, breakoutStrength });
-  const confidence = clamp(score + (signalType === "WATCH" ? -8 : 0), 0, 100);
+  const signalType = classifySignal({ settings: resolvedSettings, trendDirection, score, breakoutStrength });
+  const confidence = clamp(
+    score + (signalType === "WATCH" ? -resolvedSettings.thresholds.watchConfidencePenalty : 0),
+    0,
+    100
+  );
 
   const explanation = [
     `Trend classification on ${timeframe}: ${trendDirection}.`,

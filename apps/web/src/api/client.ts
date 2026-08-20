@@ -5,7 +5,7 @@ import {
   ScannerResponse,
   SymbolAnalysisResponse
 } from "../types";
-import { PriceAdjustment } from "@trader/shared";
+import { PriceAdjustment, StrategySettings } from "@trader/shared";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api";
 
@@ -77,6 +77,7 @@ export function fetchScanner(
   options?: {
     symbols?: string[];
     limit?: number;
+    strategySettings?: StrategySettings;
   }
 ) {
   const params = new URLSearchParams({ timeframe });
@@ -86,13 +87,24 @@ export function fetchScanner(
   if (typeof options?.limit === "number" && Number.isFinite(options.limit)) {
     params.set("limit", String(Math.max(1, Math.floor(options.limit))));
   }
+  if (options?.strategySettings) {
+    params.set("strategySettings", JSON.stringify(options.strategySettings));
+  }
   return request<ScannerResponse>(`/analysis/scanner?${params.toString()}`);
 }
 
-export function fetchSymbolAnalysis(symbol: string, timeframe: string, safetyLossBufferPct: number) {
+export function fetchSymbolAnalysis(
+  symbol: string,
+  timeframe: string,
+  safetyLossBufferPct: number,
+  strategySettings?: StrategySettings
+) {
   const adjustment: PriceAdjustment = "raw";
+  const strategySettingsPart = strategySettings
+    ? `&strategySettings=${encodeURIComponent(JSON.stringify(strategySettings))}`
+    : "";
   return request<SymbolAnalysisResponse>(
-    `/analysis/symbol/${symbol}?timeframe=${timeframe}&safetyLossBufferPct=${safetyLossBufferPct}&adjustment=${adjustment}`
+    `/analysis/symbol/${symbol}?timeframe=${timeframe}&safetyLossBufferPct=${safetyLossBufferPct}&adjustment=${adjustment}${strategySettingsPart}`
   );
 }
 
@@ -108,10 +120,14 @@ export function fetchSymbolAnalysisWithRequestId(
   timeframe: string,
   safetyLossBufferPct: number,
   requestId: string,
-  adjustment: PriceAdjustment = "raw"
+  adjustment: PriceAdjustment = "raw",
+  strategySettings?: StrategySettings
 ) {
+  const strategySettingsPart = strategySettings
+    ? `&strategySettings=${encodeURIComponent(JSON.stringify(strategySettings))}`
+    : "";
   return request<SymbolAnalysisResponse>(
-    `/analysis/symbol/${symbol}?timeframe=${timeframe}&safetyLossBufferPct=${safetyLossBufferPct}&requestId=${encodeURIComponent(requestId)}&adjustment=${adjustment}`
+    `/analysis/symbol/${symbol}?timeframe=${timeframe}&safetyLossBufferPct=${safetyLossBufferPct}&requestId=${encodeURIComponent(requestId)}&adjustment=${adjustment}${strategySettingsPart}`
   );
 }
 
