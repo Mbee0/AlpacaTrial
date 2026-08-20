@@ -1,4 +1,4 @@
-import { Timeframe, OhlcvBar } from "@trader/shared";
+import { PriceAdjustment, Timeframe, OhlcvBar } from "@trader/shared";
 import { prisma } from "../db.js";
 import { timeframeToPrisma } from "../utils/timeframe.js";
 import { fetchHistoricalBars } from "./alpacaDataService.js";
@@ -32,6 +32,14 @@ function chunkArray<T>(items: T[], chunkSize: number) {
   return chunks;
 }
 
+const adjustedBarsMemoryCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    bars: OhlcvBar[];
+  }
+>();
+
 async function ensureAsset(symbol: string) {
   return prisma.asset.upsert({
     where: { symbol },
@@ -49,10 +57,28 @@ export async function getBars(params: {
   timeframe: Timeframe;
   start: Date;
   end: Date;
+  adjustment?: PriceAdjustment;
   forceRefresh?: boolean;
   onProgress?: (message: string) => void;
 }): Promise<OhlcvBar[]> {
-  const { symbol, timeframe, start, end, forceRefresh = false, onProgress } = params;
+  const { symbol, timeframe, start, end, adjustment = "raw", forceRefresh = false, onProgress } = params;
+
+  if (adjustment !== "raw") {
+    const cacheKey = `${symbol}:${timeframe}:${start.toISOString()}:${end.toISOString()}:${adjustment}`;
+    const cached = adjustedBarsMemoryCache.get(cacheKey);
+    if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
+      onProgress?.(`Using in-memory ${adjustment} adjusted bars.`);
+      return cached.bars;
+    }
+    onProgress?.(`Requesting ${adjustment} adjusted bars from Alpaca...`);
+    const fetchedBars = await fetchHistoricalBars({ symbol, timeframe, start, end, adjustment });
+    adjustedBarsMemoryCache.set(cacheKey, {
+      bars: fetchedBars,
+      expiresAt: Date.now() + 5 * 60 * 1000
+    });
+    return fetchedBars;
+  }
+
   onProgress?.("Resolving asset metadata...");
   const asset = await ensureAsset(symbol);
   const tf = timeframeToPrisma(timeframe);
@@ -80,7 +106,7 @@ export async function getBars(params: {
   const needsFetch = forceRefresh || missingStartCoverage || missingEndCoverage;
   if (needsFetch) {
     onProgress?.("Requesting missing bars from Alpaca...");
-    const fetchedBars = await fetchHistoricalBars({ symbol, timeframe, start, end });
+    const fetchedBars = await fetchHistoricalBars({ symbol, timeframe, start, end, adjustment });
     onProgress?.("Persisting bars to local database...");
     const rows = fetchedBars.map((bar) => ({
       assetId: asset.id,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { OhlcvBar, ScannerRow, Timeframe } from "@trader/shared";
+import { OhlcvBar, PriceAdjustment, ScannerRow, Timeframe } from "@trader/shared";
 import {
   fetchAnalysisStatus,
   fetchBacktest,
@@ -27,6 +27,11 @@ const SPLITTER_PX = 4;
 const MIN_BOTTOM_PANE_PX = 150;
 const MAX_BOTTOM_PANE_PX = 460;
 const chartRangePresets: ChartRangePreset[] = ["1H", "1D", "1M", "6M", "1Y", "5Y", "YTD"];
+const priceAdjustmentOptions: Array<{ value: PriceAdjustment; label: string }> = [
+  { value: "raw", label: "Raw" },
+  { value: "split", label: "Split Adj" },
+  { value: "all", label: "All Adj" }
+];
 
 function resolveChartBarsTimeframe(baseTimeframe: Timeframe, preset: ChartRangePreset): Timeframe {
   if (preset === "1H" || preset === "1D") {
@@ -295,6 +300,7 @@ export default function App() {
   const [testSymbols, setTestSymbols] = useState<string[]>([]);
   const [savedSymbols, setSavedSymbols] = useState<string[]>([]);
   const [safetyLossBufferPct, setSafetyLossBufferPct] = useState(1);
+  const [chartPriceAdjustment, setChartPriceAdjustment] = useState<PriceAdjustment>("split");
   const [marketScannerRows, setMarketScannerRows] = useState<ScannerRow[]>([]);
   const [testScannerRows, setTestScannerRows] = useState<ScannerRow[]>([]);
   const [savedScannerRows, setSavedScannerRows] = useState<ScannerRow[]>([]);
@@ -387,6 +393,7 @@ export default function App() {
         timeframe?: Timeframe;
         selectedSymbol?: string;
         safetyLossBufferPct?: number;
+        chartPriceAdjustment?: PriceAdjustment;
         marketScannerRows?: ScannerRow[];
         scannerActiveTab?: ScannerTab;
         testSymbols?: string[];
@@ -404,6 +411,13 @@ export default function App() {
       }
       if (typeof parsed.safetyLossBufferPct === "number" && Number.isFinite(parsed.safetyLossBufferPct)) {
         setSafetyLossBufferPct(parsed.safetyLossBufferPct);
+      }
+      if (
+        parsed.chartPriceAdjustment === "raw" ||
+        parsed.chartPriceAdjustment === "split" ||
+        parsed.chartPriceAdjustment === "all"
+      ) {
+        setChartPriceAdjustment(parsed.chartPriceAdjustment);
       }
       if (parsed.scannerActiveTab === "market" || parsed.scannerActiveTab === "test" || parsed.scannerActiveTab === "saved") {
         setScannerActiveTab(parsed.scannerActiveTab);
@@ -437,6 +451,7 @@ export default function App() {
       timeframe,
       selectedSymbol,
       safetyLossBufferPct,
+      chartPriceAdjustment,
       scannerActiveTab,
       testSymbols: testSymbols.slice(0, 80),
       savedSymbols: savedSymbols.slice(0, 80),
@@ -450,6 +465,7 @@ export default function App() {
     timeframe,
     selectedSymbol,
     safetyLossBufferPct,
+    chartPriceAdjustment,
     scannerActiveTab,
     testSymbols,
     savedSymbols,
@@ -545,10 +561,10 @@ export default function App() {
       const requestId = barsRequestIdRef.current + 1;
       barsRequestIdRef.current = requestId;
       const bufferPct = Math.max(0.1, safetyLossBufferPct) / 100;
-      const analysisKey = `${selectedSymbol}:${timeframe}:${bufferPct.toFixed(4)}`;
+      const analysisKey = `${selectedSymbol}:${timeframe}:${bufferPct.toFixed(4)}:${chartPriceAdjustment}`;
       const range = buildRangeForPreset(chartRangePreset);
-      const chartBarsCacheKey = `${selectedSymbol}:${chartBarsTimeframe}:${chartRangePreset}`;
-      const symbolTimeframeKey = `${selectedSymbol}:${timeframe}`;
+      const chartBarsCacheKey = `${selectedSymbol}:${chartBarsTimeframe}:${chartRangePreset}:${chartPriceAdjustment}`;
+      const symbolTimeframeKey = `${selectedSymbol}:${timeframe}:${chartPriceAdjustment}`;
       const cachedBars = chartBarsCacheRef.current.get(chartBarsCacheKey);
       const cachedAnalysis = analysisCacheRef.current.get(analysisKey);
       const cachedBacktest = backtestCacheRef.current.get(symbolTimeframeKey);
@@ -566,7 +582,7 @@ export default function App() {
       setChartStatusMessage(`Fetching candlestick history (${chartIntervalLabel(chartBarsTimeframe, chartAggregation)})...`);
       setChartStatusProgress(chartProgressFromStatus("Fetching candlestick history..."));
       try {
-        const marketBarsResponse = await fetchMarketBars(selectedSymbol, chartBarsTimeframe, range);
+        const marketBarsResponse = await fetchMarketBars(selectedSymbol, chartBarsTimeframe, range, chartPriceAdjustment);
         if (requestId !== barsRequestIdRef.current) {
           return;
         }
@@ -596,7 +612,7 @@ export default function App() {
     };
 
     loadChartBars();
-  }, [selectedSymbol, timeframe, chartRangePreset, chartBarsTimeframe, chartAggregation]);
+  }, [selectedSymbol, timeframe, chartRangePreset, chartBarsTimeframe, chartAggregation, chartPriceAdjustment]);
 
   const runAnalysis = async () => {
     if (!selectedSymbol) {
@@ -610,8 +626,8 @@ export default function App() {
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const bufferPct = Math.max(0.1, safetyLossBufferPct) / 100;
-    const analysisKey = `${selectedSymbol}:${timeframe}:${bufferPct.toFixed(4)}`;
-    const symbolTimeframeKey = `${selectedSymbol}:${timeframe}`;
+    const analysisKey = `${selectedSymbol}:${timeframe}:${bufferPct.toFixed(4)}:${chartPriceAdjustment}`;
+    const symbolTimeframeKey = `${selectedSymbol}:${timeframe}:${chartPriceAdjustment}`;
     const cachedAnalysis = analysisCacheRef.current.get(analysisKey);
     const cachedBacktest = backtestCacheRef.current.get(symbolTimeframeKey);
     if (cachedAnalysis) {
@@ -647,7 +663,13 @@ export default function App() {
     void pollStatus();
 
     try {
-      const analysisResponse = await fetchSymbolAnalysisWithRequestId(selectedSymbol, timeframe, bufferPct, statusRequestId);
+      const analysisResponse = await fetchSymbolAnalysisWithRequestId(
+        selectedSymbol,
+        timeframe,
+        bufferPct,
+        statusRequestId,
+        chartPriceAdjustment
+      );
       if (requestId !== detailRequestIdRef.current) {
         clearStatusPolling();
         return;
@@ -659,7 +681,7 @@ export default function App() {
       setChartStatusMessage("Chart analysis complete.");
       setChartStatusProgress(100);
 
-      void fetchBacktest(selectedSymbol, timeframe)
+      void fetchBacktest(selectedSymbol, timeframe, chartPriceAdjustment)
         .then((backtestResponse) => {
           if (requestId !== detailRequestIdRef.current) {
             return;
@@ -960,6 +982,21 @@ export default function App() {
                       </button>
                     ))}
                     <span className="chart-range-interval">Bar interval: {chartInterval}</span>
+                  </div>
+                  <div className="chart-range-row" role="tablist" aria-label="Price adjustment mode">
+                    <span className="chart-range-label">Prices</span>
+                    {priceAdjustmentOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        role="tab"
+                        aria-selected={chartPriceAdjustment === option.value}
+                        className={`chart-range-chip ${chartPriceAdjustment === option.value ? "active" : ""}`}
+                        onClick={() => setChartPriceAdjustment(option.value)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
                   </div>
                   {chartHistoryCoverageNote && <div className="chart-coverage-note">{chartHistoryCoverageNote}</div>}
                   {(chartBarsLoading || detailsLoading) && (

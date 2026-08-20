@@ -5,6 +5,7 @@ import {
   ScannerResponse,
   SymbolAnalysisResponse
 } from "../types";
+import { PriceAdjustment } from "@trader/shared";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api";
 
@@ -89,8 +90,9 @@ export function fetchScanner(
 }
 
 export function fetchSymbolAnalysis(symbol: string, timeframe: string, safetyLossBufferPct: number) {
+  const adjustment: PriceAdjustment = "raw";
   return request<SymbolAnalysisResponse>(
-    `/analysis/symbol/${symbol}?timeframe=${timeframe}&safetyLossBufferPct=${safetyLossBufferPct}`
+    `/analysis/symbol/${symbol}?timeframe=${timeframe}&safetyLossBufferPct=${safetyLossBufferPct}&adjustment=${adjustment}`
   );
 }
 
@@ -105,10 +107,11 @@ export function fetchSymbolAnalysisWithRequestId(
   symbol: string,
   timeframe: string,
   safetyLossBufferPct: number,
-  requestId: string
+  requestId: string,
+  adjustment: PriceAdjustment = "raw"
 ) {
   return request<SymbolAnalysisResponse>(
-    `/analysis/symbol/${symbol}?timeframe=${timeframe}&safetyLossBufferPct=${safetyLossBufferPct}&requestId=${encodeURIComponent(requestId)}`
+    `/analysis/symbol/${symbol}?timeframe=${timeframe}&safetyLossBufferPct=${safetyLossBufferPct}&requestId=${encodeURIComponent(requestId)}&adjustment=${adjustment}`
   );
 }
 
@@ -122,11 +125,13 @@ export function fetchMarketBars(
   range?: {
     start?: string;
     end?: string;
-  }
+  },
+  adjustment: PriceAdjustment = "raw"
 ) {
   const params = new URLSearchParams({
     symbol,
-    timeframe
+    timeframe,
+    adjustment
   });
   if (range?.start) {
     params.set("start", range.start);
@@ -148,9 +153,9 @@ export function fetchMarketBars(
   });
 }
 
-export function fetchBacktest(symbol: string, timeframe: string) {
+export function fetchBacktest(symbol: string, timeframe: string, adjustment: PriceAdjustment = "raw") {
   return request<BacktestResponse>(
-    `/backtest/run?symbol=${symbol}&timeframe=${timeframe}&startingBalance=10000&riskPct=0.01`
+    `/backtest/run?symbol=${symbol}&timeframe=${timeframe}&startingBalance=10000&riskPct=0.01&adjustment=${adjustment}`
   );
 }
 

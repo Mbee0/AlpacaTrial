@@ -1,4 +1,5 @@
 export type Timeframe = "1Day" | "4Hour" | "1Hour" | "15Min";
+export type PriceAdjustment = "raw" | "split" | "all";
 
 export type TrendDirection = "BULLISH" | "BEARISH" | "SIDEWAYS";
 export type SignalType = "LONG" | "SHORT" | "WATCH" | "HOLD";

@@ -9,6 +9,7 @@ const barsQuerySchema = z.object({
   timeframe: z.string().default("1Hour"),
   start: z.string().optional(),
   end: z.string().optional(),
+  adjustment: z.enum(["raw", "split", "all"]).default("raw"),
   forceRefresh: z.string().optional()
 });
 
@@ -25,6 +26,7 @@ export async function registerMarketRoutes(app: FastifyInstance) {
       timeframe,
       start,
       end,
+      adjustment: query.adjustment,
       forceRefresh: query.forceRefresh === "true"
     });
 

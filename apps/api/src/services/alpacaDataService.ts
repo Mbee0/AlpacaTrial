@@ -1,6 +1,6 @@
 import axios, { AxiosResponse } from "axios";
 import { addDays } from "date-fns";
-import { OhlcvBar, Timeframe } from "@trader/shared";
+import { OhlcvBar, PriceAdjustment, Timeframe } from "@trader/shared";
 import { env } from "../config.js";
 
 interface AlpacaBar {
@@ -47,12 +47,13 @@ export async function fetchHistoricalBars(params: {
   timeframe: Timeframe;
   start: Date;
   end: Date;
+  adjustment?: PriceAdjustment;
 }): Promise<OhlcvBar[]> {
   if (!hasCredentials) {
     throw new Error("Alpaca API credentials missing. Set ALPACA_API_KEY and ALPACA_API_SECRET.");
   }
 
-  const { symbol, timeframe, start, end } = params;
+  const { symbol, timeframe, start, end, adjustment = "raw" } = params;
   const bars: OhlcvBar[] = [];
   let nextToken: string | undefined | null = undefined;
 
@@ -63,7 +64,7 @@ export async function fetchHistoricalBars(params: {
         start: start.toISOString(),
         end: end.toISOString(),
         limit: 10000,
-        adjustment: "raw",
+        adjustment,
         feed: "iex",
         page_token: nextToken ?? undefined
       }

@@ -34,6 +34,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance) {
       .object({
         timeframe: z.string().default("1Hour"),
         safetyLossBufferPct: z.coerce.number().default(0.01),
+        adjustment: z.enum(["raw", "split", "all"]).default("raw"),
         requestId: z.string().optional()
       })
       .parse(request.query);
@@ -51,6 +52,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance) {
         timeframe,
         start,
         end,
+        adjustment: query.adjustment,
         onProgress: requestId ? (message) => updateAnalysisStatus(requestId, message) : undefined
       });
       requestId && updateAnalysisStatus(requestId, "Detecting swing points...");
@@ -85,6 +87,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance) {
       .object({
         timeframe: z.string().default("1Hour"),
         symbols: z.string().optional(),
+        adjustment: z.enum(["raw", "split", "all"]).default("raw"),
         limit: z.coerce.number().default(30)
       })
       .parse(request.query);
@@ -98,7 +101,7 @@ export async function registerAnalysisRoutes(app: FastifyInstance) {
     const rows = [];
     for (const symbol of sourceSymbols.slice(0, query.limit)) {
       try {
-        const bars = await getBars({ symbol, timeframe, start, end });
+        const bars = await getBars({ symbol, timeframe, start, end, adjustment: query.adjustment });
         if (bars.length < 100) {
           continue;
         }
