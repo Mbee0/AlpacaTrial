@@ -67,13 +67,15 @@ export async function registerAnalysisRoutes(app: FastifyInstance) {
     return reply.send(status);
   });
 
-  app.get("/analysis/symbol/:symbol", async (request) => {
+  app.get("/analysis/symbol/:symbol", async (request, reply) => {
     const params = z.object({ symbol: z.string().min(1) }).parse(request.params);
     const query = z
       .object({
         timeframe: z.string().default("1Hour"),
         safetyLossBufferPct: z.coerce.number().default(0.01),
         adjustment: z.enum(["raw", "split", "all"]).default("raw"),
+        start: z.string().optional(),
+        end: z.string().optional(),
         strategySettings: z.string().optional(),
         requestId: z.string().optional()
       })
@@ -81,7 +83,14 @@ export async function registerAnalysisRoutes(app: FastifyInstance) {
     const strategySettings = parseStrategySettings(query.strategySettings);
     const timeframe = parseTimeframe(query.timeframe);
     const symbol = params.symbol.toUpperCase();
-    const { start, end } = getDefaultDateRange(timeframe);
+    const fallbackRange = getDefaultDateRange(timeframe);
+    const start = query.start ? new Date(query.start) : fallbackRange.start;
+    const end = query.end ? new Date(query.end) : fallbackRange.end;
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return reply.status(400).send({
+        message: "Invalid start/end range supplied for analysis request."
+      });
+    }
     const requestId = query.requestId;
     if (requestId) {
       initAnalysisStatus(requestId, "Starting symbol analysis...");

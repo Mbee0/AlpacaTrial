@@ -290,6 +290,29 @@ export function SymbolChart({ analysis, bars, backtestTrades }: SymbolChartProps
           if (line.kind === "CANDIDATE") {
             continue;
           }
+          if (line.kind === "ACTION") {
+            const pointATime = toUtcTimestampOrNull(line.startTime);
+            const pointBTime = toUtcTimestampOrNull(line.endTime);
+            if (pointATime) {
+              markers.push({
+                time: pointATime,
+                position: "belowBar",
+                color: trendlineColor(line),
+                shape: "circle",
+                text: "A"
+              });
+            }
+            if (pointBTime) {
+              markers.push({
+                time: pointBTime,
+                position: "belowBar",
+                color: trendlineColor(line),
+                shape: "circle",
+                text: "B"
+              });
+            }
+            continue;
+          }
           const time = toUtcTimestampOrNull(line.startTime);
           if (!time) {
             continue;

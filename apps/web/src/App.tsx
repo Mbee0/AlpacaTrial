@@ -373,7 +373,7 @@ export default function App() {
   const [savedScannerRows, setSavedScannerRows] = useState<ScannerRow[]>([]);
   const [selectedSymbol, setSelectedSymbol] = useState<string>();
   const [chartBars, setChartBars] = useState<OhlcvBar[]>();
-  const [chartRangePreset, setChartRangePreset] = useState<ChartRangePreset>("1M");
+  const [chartRangePreset, setChartRangePreset] = useState<ChartRangePreset>("ALL");
   const [analysis, setAnalysis] = useState<SymbolAnalysisResponse>();
   const [backtest, setBacktest] = useState<BacktestResponse>();
   const [portfolio, setPortfolio] = useState<PortfolioSummaryResponse>();
@@ -642,7 +642,7 @@ export default function App() {
       const requestId = barsRequestIdRef.current + 1;
       barsRequestIdRef.current = requestId;
       const bufferPct = Math.max(0.1, safetyLossBufferPct) / 100;
-      const analysisKey = `${selectedSymbol}:${timeframe}:${bufferPct.toFixed(4)}:${chartPriceAdjustment}:${strategySettingsKey}`;
+      const analysisKey = `${selectedSymbol}:${timeframe}:${chartRangePreset}:${bufferPct.toFixed(4)}:${chartPriceAdjustment}:${strategySettingsKey}`;
       const range = buildRangeForPreset(chartRangePreset);
       const chartBarsCacheKey = `${selectedSymbol}:${chartBarsTimeframe}:${chartRangePreset}:${chartPriceAdjustment}`;
       const symbolTimeframeKey = `${selectedSymbol}:${timeframe}:${chartPriceAdjustment}`;
@@ -715,7 +715,8 @@ export default function App() {
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const bufferPct = Math.max(0.1, safetyLossBufferPct) / 100;
-    const analysisKey = `${selectedSymbol}:${timeframe}:${bufferPct.toFixed(4)}:${chartPriceAdjustment}:${strategySettingsKey}`;
+    const analysisRange = buildRangeForPreset(chartRangePreset);
+    const analysisKey = `${selectedSymbol}:${timeframe}:${chartRangePreset}:${bufferPct.toFixed(4)}:${chartPriceAdjustment}:${strategySettingsKey}`;
     const symbolTimeframeKey = `${selectedSymbol}:${timeframe}:${chartPriceAdjustment}`;
     const cachedAnalysis = analysisCacheRef.current.get(analysisKey);
     const cachedBacktest = backtestCacheRef.current.get(symbolTimeframeKey);
@@ -758,7 +759,8 @@ export default function App() {
         bufferPct,
         statusRequestId,
         chartPriceAdjustment,
-        strategySettings
+        strategySettings,
+        analysisRange
       );
       if (requestId !== detailRequestIdRef.current) {
         clearStatusPolling();

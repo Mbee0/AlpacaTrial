@@ -5,16 +5,15 @@ import {
   StrategySettings,
   StrategySettingsInput,
   StrategySignal,
+  SwingPoint,
   Timeframe,
   Trendline
 } from "@trader/shared";
 import { OhlcvBar } from "@trader/shared";
-import { detectSwingPoints } from "./swingPoints.js";
-import { detectTrendDirection, generateTrendlineCandidates } from "./trendlines.js";
 
 interface SymbolAnalysisResult {
   signal: StrategySignal;
-  swings: ReturnType<typeof detectSwingPoints>;
+  swings: SwingPoint[];
   trendlines: Trendline[];
 }
 
@@ -26,6 +25,96 @@ function linePriceAt(trendline: Trendline, timestamp: string) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
+}
+
+interface RayEndpoint {
+  index: number;
+  timestamp: string;
+  price: number;
+  slope: number;
+}
+
+function buildPrimaryRay(params: { symbol: string; timeframe: Timeframe; bars: OhlcvBar[] }) {
+  const { symbol, timeframe, bars } = params;
+  if (bars.length < 2) {
+    return null;
+  }
+
+  const firstBar = bars[0];
+  const pointA: SwingPoint = {
+    symbol,
+    timeframe,
+    timestamp: firstBar.timestamp,
+    price: firstBar.low,
+    kind: "LOW",
+    strength: 0
+  };
+  const pointATime = new Date(pointA.timestamp).getTime();
+  if (!Number.isFinite(pointATime)) {
+    return null;
+  }
+
+  let selected: RayEndpoint | null = null;
+  let usedFallback = false;
+  for (let index = 1; index < bars.length; index += 1) {
+    const bar = bars[index];
+    const barTime = new Date(bar.timestamp).getTime();
+    if (!Number.isFinite(barTime) || barTime <= pointATime) {
+      continue;
+    }
+    const slope = (bar.low - pointA.price) / (barTime - pointATime);
+    if (!Number.isFinite(slope) || slope < 0) {
+      continue;
+    }
+    if (!selected || slope < selected.slope) {
+      selected = {
+        index,
+        timestamp: bar.timestamp,
+        price: bar.low,
+        slope
+      };
+    }
+  }
+
+  if (!selected) {
+    usedFallback = true;
+    let fallbackIndex = 1;
+    let fallbackPrice = bars[1].low;
+    for (let index = 2; index < bars.length; index += 1) {
+      if (bars[index].low > fallbackPrice) {
+        fallbackPrice = bars[index].low;
+        fallbackIndex = index;
+      }
+    }
+    const fallbackTime = new Date(bars[fallbackIndex].timestamp).getTime();
+    const fallbackSlope =
+      Number.isFinite(fallbackTime) && fallbackTime > pointATime
+        ? (bars[fallbackIndex].low - pointA.price) / (fallbackTime - pointATime)
+        : 0;
+    selected = {
+      index: fallbackIndex,
+      timestamp: bars[fallbackIndex].timestamp,
+      price: bars[fallbackIndex].low,
+      slope: Number.isFinite(fallbackSlope) ? fallbackSlope : 0
+    };
+  }
+
+  const pointB: SwingPoint = {
+    symbol,
+    timeframe,
+    timestamp: selected.timestamp,
+    price: selected.price,
+    kind: "LOW",
+    strength: 0
+  };
+
+  return {
+    pointA,
+    pointB,
+    pointAIndex: 0,
+    slope: selected.slope,
+    usedFallback
+  };
 }
 
 function resolveStrategySettings(settings?: StrategySettingsInput): StrategySettings {
@@ -160,20 +249,6 @@ function classifySignal(params: {
   return "HOLD" as const;
 }
 
-function pickLatestLine(candidates: Trendline[]) {
-  if (candidates.length === 0) {
-    return undefined;
-  }
-
-  return [...candidates].sort((a, b) => {
-    const endDiff = new Date(b.endTime).getTime() - new Date(a.endTime).getTime();
-    if (endDiff !== 0) {
-      return endDiff;
-    }
-    return b.score - a.score;
-  })[0];
-}
-
 export function analyzeSymbol(params: {
   symbol: string;
   timeframe: Timeframe;
@@ -191,70 +266,109 @@ export function analyzeSymbol(params: {
     strategySettings
   } = params;
   const resolvedSettings = resolveStrategySettings(strategySettings);
-  const swings = detectSwingPoints({ symbol, timeframe, bars });
-  let trendDirection = detectTrendDirection(swings);
-  const bullishCandidates = generateTrendlineCandidates({
-    symbol,
-    timeframe,
-    swings,
-    bars,
-    direction: "BULLISH"
-  });
-  const bearishCandidates = generateTrendlineCandidates({
-    symbol,
-    timeframe,
-    swings,
-    bars,
-    direction: "BEARISH"
-  });
-
-  const bullishStrength = bullishCandidates[0]?.score ?? Number.NEGATIVE_INFINITY;
-  const bearishStrength = bearishCandidates[0]?.score ?? Number.NEGATIVE_INFINITY;
-  if (trendDirection === "SIDEWAYS") {
-    if (bullishStrength > bearishStrength + 5) {
-      trendDirection = "BULLISH";
-    } else if (bearishStrength > bullishStrength + 5) {
-      trendDirection = "BEARISH";
-    }
+  if (bars.length < 2) {
+    const fallbackSignal: StrategySignal = {
+      symbol,
+      timeframe,
+      signal: "HOLD",
+      trendDirection: "SIDEWAYS",
+      score: 0,
+      confidence: 0,
+      explanation: ["Not enough bar history to build the A→B baseline ray."],
+      breakdown: {
+        trendStrength: 0,
+        trendlineQuality: 0,
+        breakoutStrength: 0,
+        volumeConfirmation: 0,
+        multiTimeframeAlignment: 0,
+        volatilitySuitability: 0,
+        riskReward: 0
+      }
+    };
+    return { signal: fallbackSignal, swings: [], trendlines: [] };
   }
 
-  const activeCandidates =
-    trendDirection === "BULLISH"
-      ? bullishCandidates
-      : trendDirection === "BEARISH"
-        ? bearishCandidates
-        : bullishStrength >= bearishStrength
-          ? bullishCandidates
-          : bearishCandidates;
-  const opposingCandidates = activeCandidates === bullishCandidates ? bearishCandidates : bullishCandidates;
-  const baseAction = pickLatestLine(activeCandidates);
-  const baseSafety = pickLatestLine(opposingCandidates) ?? pickLatestLine(activeCandidates.slice(0, -1));
-  const actionLine = baseAction ? { ...baseAction, kind: "ACTION" as const } : undefined;
-  const safetyLine = baseSafety ? { ...baseSafety, kind: "SAFETY" as const } : undefined;
+  const primaryRay = buildPrimaryRay({ symbol, timeframe, bars });
+  if (!primaryRay) {
+    const fallbackSignal: StrategySignal = {
+      symbol,
+      timeframe,
+      signal: "HOLD",
+      trendDirection: "SIDEWAYS",
+      score: 0,
+      confidence: 0,
+      explanation: ["Could not construct a valid A→B ray from available history."],
+      breakdown: {
+        trendStrength: 0,
+        trendlineQuality: 0,
+        breakoutStrength: 0,
+        volumeConfirmation: 0,
+        multiTimeframeAlignment: 0,
+        volatilitySuitability: 0,
+        riskReward: 0
+      }
+    };
+    return { signal: fallbackSignal, swings: [], trendlines: [] };
+  }
+
+  const { pointA, pointB, pointAIndex, slope, usedFallback } = primaryRay;
+  const swings: SwingPoint[] = [pointA, pointB];
   const lastBar = bars[bars.length - 1];
   const prevBar = bars[bars.length - 2] ?? lastBar;
+  const actionLine: Trendline = {
+    symbol,
+    timeframe,
+    direction: "BULLISH",
+    kind: "ACTION",
+    startTime: pointA.timestamp,
+    endTime: pointB.timestamp,
+    startPrice: pointA.price,
+    endPrice: pointB.price,
+    slope,
+    score: 0,
+    touches: 0,
+    violations: 0
+  };
 
-  const actionLinePrice = actionLine ? linePriceAt(actionLine, lastBar.timestamp) : undefined;
-  const actionPrevPrice = actionLine ? linePriceAt(actionLine, prevBar.timestamp) : undefined;
-  const safetyLinePrice = safetyLine ? linePriceAt(safetyLine, lastBar.timestamp) : undefined;
+  const actionLinePrice = linePriceAt(actionLine, lastBar.timestamp);
+  const actionPrevPrice = linePriceAt(actionLine, prevBar.timestamp);
+  const trendDirection: StrategySignal["trendDirection"] = lastBar.close >= actionLinePrice ? "BULLISH" : "BEARISH";
+
   const clampedSafetyLossBuffer = clamp(safetyLossBufferPct, 0.001, 0.2);
+  const safetyLinePrice =
+    trendDirection === "BEARISH"
+      ? actionLinePrice * (1 + clampedSafetyLossBuffer)
+      : actionLinePrice * (1 - clampedSafetyLossBuffer);
   const safetyLossLinePrice =
     trendDirection === "BEARISH"
       ? lastBar.close * (1 + clampedSafetyLossBuffer)
       : lastBar.close * (1 - clampedSafetyLossBuffer);
 
-  const trendStrength = trendDirection === "SIDEWAYS" ? 35 : 68 + Math.min(20, swings.length);
-  const trendlineQuality = actionLine ? clamp(actionLine.score, 0, 100) : 20;
-  const breakoutStrength = actionLinePrice
-    ? trendDirection === "BEARISH"
-      ? clamp(((actionLinePrice - lastBar.close) / lastBar.close) * 2200 + 50, 0, 100)
-      : clamp(((lastBar.close - actionLinePrice) / lastBar.close) * 2200 + 50, 0, 100)
-    : 30;
+  let touches = 0;
+  let violations = 0;
+  for (let index = pointAIndex; index < bars.length; index += 1) {
+    const bar = bars[index];
+    const linePx = linePriceAt(actionLine, bar.timestamp);
+    const proximity = Math.abs(bar.low - linePx) / Math.max(1e-9, bar.close);
+    if (proximity <= 0.006) {
+      touches += 1;
+    }
+    if (bar.low < linePx * 0.993) {
+      violations += 1;
+    }
+  }
+
+  const slopePctPerYear = ((slope * 86400000 * 252) / Math.max(1e-9, pointA.price)) * 100;
+  const trendStrength = clamp(50 + slopePctPerYear * 0.18, 5, 95);
+  const trendlineQuality = clamp(55 + touches * 2.2 - violations * 6.5, 0, 100);
+  const breakoutStrength =
+    trendDirection === "BEARISH"
+      ? clamp(((actionLinePrice - lastBar.close) / Math.max(1e-9, lastBar.close)) * 2200 + 50, 0, 100)
+      : clamp(((lastBar.close - actionLinePrice) / Math.max(1e-9, lastBar.close)) * 2200 + 50, 0, 100);
   const avgVolume = bars.slice(-20).reduce((acc, bar) => acc + bar.volume, 0) / Math.max(1, bars.slice(-20).length);
   const volumeConfirmation = clamp((lastBar.volume / Math.max(1, avgVolume)) * 50, 0, 100);
   const multiTimeframeAlignment =
     higherTimeframeDirection && higherTimeframeDirection === trendDirection ? 85 : higherTimeframeDirection ? 45 : 60;
-
   const averageRangePct =
     bars
       .slice(-20)
@@ -262,10 +376,9 @@ export function analyzeSymbol(params: {
     Math.max(1, bars.slice(-20).length);
   const volatilitySuitability = clamp((0.035 - Math.abs(averageRangePct - 0.02)) * 2800, 20, 95);
 
-  const riskPerShare = actionLinePrice && safetyLinePrice ? Math.abs(actionLinePrice - safetyLinePrice) : undefined;
-  const rewardProxy = actionLinePrice ? Math.abs(lastBar.close - actionLinePrice) : 0;
-  const riskReward =
-    riskPerShare && riskPerShare > 0 ? clamp((rewardProxy / riskPerShare) * 50, 10, 95) : 40;
+  const riskPerShare = Math.abs(actionLinePrice - safetyLinePrice);
+  const rewardProxy = Math.abs(lastBar.close - actionLinePrice);
+  const riskReward = riskPerShare > 0 ? clamp((rewardProxy / riskPerShare) * 50, 10, 95) : 40;
 
   const { score, breakdown } = scoreSignal({
     settings: resolvedSettings,
@@ -286,22 +399,24 @@ export function analyzeSymbol(params: {
   );
 
   const explanation = [
-    `Trend classification on ${timeframe}: ${trendDirection}.`,
-    actionLine ? `Action Line score ${actionLine.score.toFixed(1)} with ${actionLine.touches} touches.` : "No robust Action Line detected.",
-    safetyLine ? `Safety Line projected at ${safetyLinePrice?.toFixed(2)}.` : "Safety Line unavailable; risk estimates are conservative.",
-    `Safety-loss line uses ${(clampedSafetyLossBuffer * 100).toFixed(2)}% buffer at ${safetyLossLinePrice.toFixed(2)}.`,
-    `Ray engine found ${bullishCandidates.length} bullish support rays and ${bearishCandidates.length} bearish resistance rays.`,
-    `Breakout strength ${breakoutStrength.toFixed(1)} and volume confirmation ${volumeConfirmation.toFixed(1)}.`,
-    `Multi-timeframe alignment score ${multiTimeframeAlignment.toFixed(1)}.`
+    `Point A anchored at first bar (${pointA.timestamp.slice(0, 10)}) low ${pointA.price.toFixed(2)}.`,
+    `Point B chosen at ${pointB.timestamp.slice(0, 10)} low ${pointB.price.toFixed(2)} using 0°→90° sweep.`,
+    usedFallback
+      ? "No non-negative slope contact found; fallback selected highest reachable low as Point B."
+      : "Point B is the first valid upward-contact candidate (minimum non-negative slope).",
+    `A→B ray slope projects Action Line at ${actionLinePrice.toFixed(2)} (current close ${lastBar.close.toFixed(2)}).`,
+    `Safety line derived from Action Line using ${(clampedSafetyLossBuffer * 100).toFixed(2)}% buffer at ${safetyLinePrice.toFixed(2)}.`,
+    `Safety-loss line from close with same buffer at ${safetyLossLinePrice.toFixed(2)}.`,
+    `Touches ${touches}, violations ${violations}, breakout ${breakoutStrength.toFixed(1)}, volume ${volumeConfirmation.toFixed(1)}.`
   ];
 
   if (actionLinePrice && actionPrevPrice) {
     const crossedUp = prevBar.close <= actionPrevPrice && lastBar.close > actionLinePrice;
     const crossedDown = prevBar.close >= actionPrevPrice && lastBar.close < actionLinePrice;
     if (crossedUp) {
-      explanation.push("Latest candle crossed above Action Line (bullish trigger condition).");
+      explanation.push("Latest candle crossed above the A→B ray.");
     } else if (crossedDown) {
-      explanation.push("Latest candle crossed below Action Line (bearish trigger condition).");
+      explanation.push("Latest candle crossed below the A→B ray.");
     }
   }
 
@@ -319,38 +434,14 @@ export function analyzeSymbol(params: {
     breakdown
   };
 
-  const trendlinesForInspection: Trendline[] = [];
-  const seen = new Set<string>();
-  const pushUnique = (line: Trendline | undefined) => {
-    if (!line) {
-      return;
+  const trendlinesForInspection: Trendline[] = [
+    {
+      ...actionLine,
+      score: trendlineQuality,
+      touches,
+      violations
     }
-    const key = `${line.kind}:${line.direction}:${line.startTime}:${line.endTime}`;
-    if (seen.has(key)) {
-      return;
-    }
-    seen.add(key);
-    trendlinesForInspection.push(line);
-  };
-
-  pushUnique(actionLine);
-  pushUnique(safetyLine);
-  pushUnique({
-    symbol,
-    timeframe,
-    direction: trendDirection,
-    kind: "SAFETY_LOSS",
-    startTime: bars[Math.max(0, bars.length - 40)].timestamp,
-    endTime: lastBar.timestamp,
-    startPrice: safetyLossLinePrice,
-    endPrice: safetyLossLinePrice,
-    slope: 0,
-    score: 100,
-    touches: 0,
-    violations: 0
-  });
-  activeCandidates.slice(0, 4).forEach(pushUnique);
-  opposingCandidates.slice(0, 4).forEach(pushUnique);
+  ];
 
   return {
     signal,

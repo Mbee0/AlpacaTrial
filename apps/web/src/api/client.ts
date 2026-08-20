@@ -97,15 +97,28 @@ export function fetchSymbolAnalysis(
   symbol: string,
   timeframe: string,
   safetyLossBufferPct: number,
-  strategySettings?: StrategySettings
+  strategySettings?: StrategySettings,
+  adjustment: PriceAdjustment = "raw",
+  range?: {
+    start?: string;
+    end?: string;
+  }
 ) {
-  const adjustment: PriceAdjustment = "raw";
-  const strategySettingsPart = strategySettings
-    ? `&strategySettings=${encodeURIComponent(JSON.stringify(strategySettings))}`
-    : "";
-  return request<SymbolAnalysisResponse>(
-    `/analysis/symbol/${symbol}?timeframe=${timeframe}&safetyLossBufferPct=${safetyLossBufferPct}&adjustment=${adjustment}${strategySettingsPart}`
-  );
+  const params = new URLSearchParams({
+    timeframe,
+    safetyLossBufferPct: String(safetyLossBufferPct),
+    adjustment
+  });
+  if (strategySettings) {
+    params.set("strategySettings", JSON.stringify(strategySettings));
+  }
+  if (range?.start) {
+    params.set("start", range.start);
+  }
+  if (range?.end) {
+    params.set("end", range.end);
+  }
+  return request<SymbolAnalysisResponse>(`/analysis/symbol/${symbol}?${params.toString()}`);
 }
 
 export interface AnalysisStatusResponse {
@@ -121,14 +134,28 @@ export function fetchSymbolAnalysisWithRequestId(
   safetyLossBufferPct: number,
   requestId: string,
   adjustment: PriceAdjustment = "raw",
-  strategySettings?: StrategySettings
+  strategySettings?: StrategySettings,
+  range?: {
+    start?: string;
+    end?: string;
+  }
 ) {
-  const strategySettingsPart = strategySettings
-    ? `&strategySettings=${encodeURIComponent(JSON.stringify(strategySettings))}`
-    : "";
-  return request<SymbolAnalysisResponse>(
-    `/analysis/symbol/${symbol}?timeframe=${timeframe}&safetyLossBufferPct=${safetyLossBufferPct}&requestId=${encodeURIComponent(requestId)}&adjustment=${adjustment}${strategySettingsPart}`
-  );
+  const params = new URLSearchParams({
+    timeframe,
+    safetyLossBufferPct: String(safetyLossBufferPct),
+    requestId,
+    adjustment
+  });
+  if (strategySettings) {
+    params.set("strategySettings", JSON.stringify(strategySettings));
+  }
+  if (range?.start) {
+    params.set("start", range.start);
+  }
+  if (range?.end) {
+    params.set("end", range.end);
+  }
+  return request<SymbolAnalysisResponse>(`/analysis/symbol/${symbol}?${params.toString()}`);
 }
 
 export function fetchAnalysisStatus(requestId: string) {
