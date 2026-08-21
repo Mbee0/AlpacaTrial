@@ -440,10 +440,13 @@ export default function App() {
     () => chartIntervalLabel(chartBarsTimeframe, chartAggregation),
     [chartBarsTimeframe, chartAggregation]
   );
-  const actionLineForDebug = useMemo(
-    () => analysis?.trendlines.find((line) => line.kind === "ACTION"),
-    [analysis]
-  );
+  const actionLineForDebug = useMemo(() => {
+    const actionLines = analysis?.trendlines.filter((line) => line.kind === "ACTION") ?? [];
+    if (actionLines.length === 0) {
+      return undefined;
+    }
+    return [...actionLines].sort((a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime())[0];
+  }, [analysis]);
   const chartDebugRows = useMemo(() => {
     const bars = chartBars ?? [];
     if (bars.length <= 12) {
@@ -1150,10 +1153,12 @@ export default function App() {
                     {actionLineForDebug && (
                       <div className="chart-debug-meta">
                         <span>
-                          A: {actionLineForDebug.startTime.slice(0, 10)} @ {formatFixed(actionLineForDebug.startPrice, 4)}
+                          Line start: {actionLineForDebug.startTime.slice(0, 10)} @{" "}
+                          {formatFixed(actionLineForDebug.startPrice, 4)}
                         </span>
                         <span>
-                          B: {actionLineForDebug.endTime.slice(0, 10)} @ {formatFixed(actionLineForDebug.endPrice, 4)}
+                          Line end: {actionLineForDebug.endTime.slice(0, 10)} @{" "}
+                          {formatFixed(actionLineForDebug.endPrice, 4)}
                         </span>
                         <span>Run (bars): {actionLineDebug?.runBars ?? "—"}</span>
                         <span>Rise: {formatFixed(actionLineDebug?.rise, 6)}</span>
