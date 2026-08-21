@@ -50,6 +50,10 @@ function buildPrimaryRay(params: { symbol: string; timeframe: Timeframe; bars: O
     kind: "LOW",
     strength: 0
   };
+  const pointATime = new Date(pointA.timestamp).getTime();
+  if (!Number.isFinite(pointATime)) {
+    return null;
+  }
   let selected: RayEndpoint | null = null;
   let usedFallback = false;
   for (let index = 1; index < bars.length; index += 1) {
@@ -60,12 +64,11 @@ function buildPrimaryRay(params: { symbol: string; timeframe: Timeframe; bars: O
     }
     const rise = bar.low - pointA.price;
     const slopePerBar = rise / runBars;
-    if (!Number.isFinite(slopePerBar) || slopePerBar < 0) {
+    if (!Number.isFinite(slopePerBar)) {
       continue;
     }
     const barTime = new Date(bar.timestamp).getTime();
-    const pointATime = new Date(pointA.timestamp).getTime();
-    if (!Number.isFinite(pointATime) || !Number.isFinite(barTime) || barTime <= pointATime) {
+    if (!Number.isFinite(barTime) || barTime <= pointATime) {
       continue;
     }
     const slopePerMs = (bar.low - pointA.price) / (barTime - pointATime);
@@ -107,7 +110,7 @@ function buildPrimaryRay(params: { symbol: string; timeframe: Timeframe; bars: O
       index: fallbackIndex,
       timestamp: bars[fallbackIndex].timestamp,
       price: bars[fallbackIndex].low,
-      slopePerBar: Math.max(0, (bars[fallbackIndex].low - pointA.price) / Math.max(1, fallbackIndex)),
+      slopePerBar: (bars[fallbackIndex].low - pointA.price) / Math.max(1, fallbackIndex),
       slopePerMs: Number.isFinite(fallbackSlopePerMs) ? fallbackSlopePerMs : 0
     };
   }
@@ -326,13 +329,14 @@ export function analyzeSymbol(params: {
   }
 
   const { pointA, pointB, pointAIndex, slopePerBar, slopePerMs, usedFallback } = primaryRay;
+  const actionDirection: Trendline["direction"] = slopePerBar < 0 ? "BEARISH" : "BULLISH";
   const swings: SwingPoint[] = [pointA, pointB];
   const lastBar = bars[bars.length - 1];
   const prevBar = bars[bars.length - 2] ?? lastBar;
   const actionLine: Trendline = {
     symbol,
     timeframe,
-    direction: "BULLISH",
+    direction: actionDirection,
     kind: "ACTION",
     startTime: pointA.timestamp,
     endTime: pointB.timestamp,
@@ -346,7 +350,7 @@ export function analyzeSymbol(params: {
 
   const actionLinePrice = linePriceAt(actionLine, lastBar.timestamp);
   const actionPrevPrice = linePriceAt(actionLine, prevBar.timestamp);
-  const trendDirection: StrategySignal["trendDirection"] = lastBar.close >= actionLinePrice ? "BULLISH" : "BEARISH";
+  const trendDirection: StrategySignal["trendDirection"] = actionDirection;
 
   const clampedSafetyLossBuffer = clamp(safetyLossBufferPct, 0.001, 0.2);
   const safetyLinePrice =
@@ -363,11 +367,16 @@ export function analyzeSymbol(params: {
   for (let index = pointAIndex; index < bars.length; index += 1) {
     const bar = bars[index];
     const linePx = linePriceAt(actionLine, bar.timestamp);
-    const proximity = Math.abs(bar.low - linePx) / Math.max(1e-9, bar.close);
+    const referencePrice = trendDirection === "BEARISH" ? bar.high : bar.low;
+    const proximity = Math.abs(referencePrice - linePx) / Math.max(1e-9, bar.close);
     if (proximity <= 0.006) {
       touches += 1;
     }
-    if (bar.low < linePx * 0.993) {
+    if (trendDirection === "BEARISH") {
+      if (bar.high > linePx * 1.007) {
+        violations += 1;
+      }
+    } else if (bar.low < linePx * 0.993) {
       violations += 1;
     }
   }
@@ -414,10 +423,12 @@ export function analyzeSymbol(params: {
 
   const explanation = [
     `Point A anchored at first bar (${pointA.timestamp.slice(0, 10)}) low ${pointA.price.toFixed(2)}.`,
-    `Point B chosen at ${pointB.timestamp.slice(0, 10)} low ${pointB.price.toFixed(2)} via minimum non-negative rise/run (${slopePerBar.toFixed(6)} per bar).`,
+    `Point B chosen at ${pointB.timestamp.slice(0, 10)} low ${pointB.price.toFixed(2)} via minimum rise/run (${slopePerBar.toFixed(6)} per bar).`,
     usedFallback
-      ? "No non-negative slope contact found; fallback selected highest reachable low as Point B."
-      : "Point B is the first valid upward-contact candidate (minimum non-negative rise/run).",
+      ? "No valid slope candidate found; fallback selected highest reachable low as Point B."
+      : slopePerBar < 0
+        ? "Selected rise/run is negative, so the A→B action line is bearish (red)."
+        : "Selected rise/run is non-negative, so the A→B action line is bullish (green).",
     `A→B ray slope projects Action Line at ${actionLinePrice.toFixed(2)} (current close ${lastBar.close.toFixed(2)}).`,
     `Safety line derived from Action Line using ${(clampedSafetyLossBuffer * 100).toFixed(2)}% buffer at ${safetyLinePrice.toFixed(2)}.`,
     `Safety-loss line from close with same buffer at ${safetyLossLinePrice.toFixed(2)}.`,
