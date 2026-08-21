@@ -1073,7 +1073,7 @@ export default function App() {
                     <h2 className="title-with-hint">
                       {selectedSymbol ? `${selectedSymbol} Chart Inspection` : "Chart Inspection"}
                       <span className="title-hint">
-                        Candles, volume, trend rays, Action/Safety/Safety-Loss lines, and backtest trade markers.
+                        Candles, volume, trend rays, and Action/Safety/Safety-Loss lines.
                       </span>
                     </h2>
                     <div className="chart-panel-actions">
@@ -1233,7 +1233,7 @@ export default function App() {
                         <p className="muted">Select a symbol to load chart history.</p>
                       </div>
                     ) : (
-                      <SymbolChart analysis={analysis} bars={displayChartBars} backtestTrades={backtest?.tradeList} />
+                      <SymbolChart analysis={analysis} bars={displayChartBars} />
                     )}
                   </div>
                 </div>

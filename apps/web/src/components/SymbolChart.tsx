@@ -19,12 +19,6 @@ import { SymbolAnalysisResponse } from "../types";
 interface SymbolChartProps {
   analysis?: SymbolAnalysisResponse;
   bars?: OhlcvBar[];
-  backtestTrades?: Array<{
-    entryTime: string;
-    exitTime: string;
-    entryPrice: number;
-    exitPrice: number;
-  }>;
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -82,7 +76,7 @@ function trendlineStyle(line: SymbolAnalysisResponse["trendlines"][number]) {
   return LineStyle.Solid;
 }
 
-export function SymbolChart({ analysis, bars, backtestTrades }: SymbolChartProps) {
+export function SymbolChart({ analysis, bars }: SymbolChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const cleanupSeriesRef = useRef<
@@ -284,31 +278,6 @@ export function SymbolChart({ analysis, bars, backtestTrades }: SymbolChartProps
         shape: "arrowUp" | "arrowDown" | "circle";
         text: string;
       }> = [];
-      for (const trade of backtestTrades ?? []) {
-        const entryTime = toUtcTimestampOrNull(trade.entryTime);
-        const exitTime = toUtcTimestampOrNull(trade.exitTime);
-        const entryPrice = isFiniteNumber(trade.entryPrice) ? trade.entryPrice.toFixed(2) : "—";
-        const exitPrice = isFiniteNumber(trade.exitPrice) ? trade.exitPrice.toFixed(2) : "—";
-        if (entryTime) {
-          markers.push({
-            time: entryTime,
-            position: "belowBar",
-            color: "#1ed67c",
-            shape: "arrowUp",
-            text: `Entry ${entryPrice}`
-          });
-        }
-        if (exitTime) {
-          markers.push({
-            time: exitTime,
-            position: "aboveBar",
-            color: "#ff5a7d",
-            shape: "arrowDown",
-            text: `Exit ${exitPrice}`
-          });
-        }
-      }
-
       if (analysis) {
         for (const line of analysis.trendlines) {
           if (line.kind === "CANDIDATE") {
@@ -342,7 +311,7 @@ export function SymbolChart({ analysis, bars, backtestTrades }: SymbolChartProps
       console.error("Chart render failed", error);
       clearChartSeries(chart);
     }
-  }, [analysis, bars, backtestTrades]);
+  }, [analysis, bars]);
 
   return <div ref={containerRef} style={{ width: "100%", height: "100%", minHeight: 320 }} />;
 }
