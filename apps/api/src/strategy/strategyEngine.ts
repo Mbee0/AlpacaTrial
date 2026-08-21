@@ -35,6 +35,17 @@ interface RayEndpoint {
   slopePerMs: number;
 }
 
+interface ChainedRaySegment {
+  startIndex: number;
+  endIndex: number;
+  startPoint: SwingPoint;
+  endPoint: SwingPoint;
+  slopePerBar: number;
+  slopePerMs: number;
+  direction: Trendline["direction"];
+  usedFallback: boolean;
+}
+
 function selectEndpointFromAnchor(params: {
   bars: OhlcvBar[];
   anchorIndex: number;
@@ -106,7 +117,7 @@ function selectEndpointFromAnchor(params: {
   return { endpoint: selected, usedFallback };
 }
 
-function buildPrimaryRay(params: { symbol: string; timeframe: Timeframe; bars: OhlcvBar[] }) {
+function buildRayChain(params: { symbol: string; timeframe: Timeframe; bars: OhlcvBar[] }) {
   const { symbol, timeframe, bars } = params;
   if (bars.length < 2) {
     return null;
@@ -120,88 +131,74 @@ function buildPrimaryRay(params: { symbol: string; timeframe: Timeframe; bars: O
     }
   }
 
-  const pointABar = bars[pointAIndex];
-  const pointA: SwingPoint = {
+  const pointA = {
     symbol,
     timeframe,
-    timestamp: pointABar.timestamp,
-    price: pointABar.low,
+    timestamp: bars[pointAIndex].timestamp,
+    price: bars[pointAIndex].low,
     kind: "LOW",
     strength: 0
-  };
-  const pointATime = new Date(pointA.timestamp).getTime();
-  if (!Number.isFinite(pointATime)) {
+  } as SwingPoint;
+  const swings: SwingPoint[] = [pointA];
+  const segments: ChainedRaySegment[] = [];
+  let anyFallback = false;
+  let currentIndex = pointAIndex;
+
+  while (currentIndex < bars.length - 1) {
+    const anchorBar = bars[currentIndex];
+    const anchorPoint: SwingPoint = {
+      symbol,
+      timeframe,
+      timestamp: anchorBar.timestamp,
+      price: anchorBar.low,
+      kind: "LOW",
+      strength: 0
+    };
+    const anchorTimeMs = new Date(anchorPoint.timestamp).getTime();
+    if (!Number.isFinite(anchorTimeMs)) {
+      break;
+    }
+    const selection = selectEndpointFromAnchor({
+      bars,
+      anchorIndex: currentIndex,
+      anchorPrice: anchorPoint.price,
+      anchorTimeMs
+    });
+    const endpoint = selection.endpoint;
+    const endPoint: SwingPoint = {
+      symbol,
+      timeframe,
+      timestamp: endpoint.timestamp,
+      price: endpoint.price,
+      kind: "LOW",
+      strength: 0
+    };
+    segments.push({
+      startIndex: currentIndex,
+      endIndex: endpoint.index,
+      startPoint: anchorPoint,
+      endPoint,
+      slopePerBar: endpoint.slopePerBar,
+      slopePerMs: endpoint.slopePerMs,
+      direction: endpoint.slopePerBar < 0 ? "BEARISH" : "BULLISH",
+      usedFallback: selection.usedFallback
+    });
+    anyFallback = anyFallback || selection.usedFallback;
+    swings.push(endPoint);
+    if (endpoint.index <= currentIndex) {
+      break;
+    }
+    currentIndex = endpoint.index;
+  }
+
+  if (segments.length === 0) {
     return null;
   }
-  const selection = selectEndpointFromAnchor({
-    bars,
+  return {
     anchorIndex: pointAIndex,
-    anchorPrice: pointA.price,
-    anchorTimeMs: pointATime
-  });
-  const selected = selection.endpoint;
-
-  const pointB: SwingPoint = {
-    symbol,
-    timeframe,
-    timestamp: selected.timestamp,
-    price: selected.price,
-    kind: "LOW",
-    strength: 0
-  };
-
-  return {
-    pointA,
-    pointB,
-    pointAIndex,
-    pointBIndex: selected.index,
-    slopePerBar: selected.slopePerBar,
-    slopePerMs: selected.slopePerMs,
-    usedFallback: selection.usedFallback
-  };
-}
-
-function buildSecondaryRay(params: { symbol: string; timeframe: Timeframe; bars: OhlcvBar[]; pointBIndex: number }) {
-  const { symbol, timeframe, bars, pointBIndex } = params;
-  if (pointBIndex >= bars.length - 1) {
-    return null;
-  }
-  const pointBBar = bars[pointBIndex];
-  const pointB: SwingPoint = {
-    symbol,
-    timeframe,
-    timestamp: pointBBar.timestamp,
-    price: pointBBar.low,
-    kind: "LOW",
-    strength: 0
-  };
-  const pointBTime = new Date(pointB.timestamp).getTime();
-  if (!Number.isFinite(pointBTime)) {
-    return null;
-  }
-  const selection = selectEndpointFromAnchor({
-    bars,
-    anchorIndex: pointBIndex,
-    anchorPrice: pointB.price,
-    anchorTimeMs: pointBTime
-  });
-  const selected = selection.endpoint;
-  const pointC: SwingPoint = {
-    symbol,
-    timeframe,
-    timestamp: selected.timestamp,
-    price: selected.price,
-    kind: "LOW",
-    strength: 0
-  };
-  return {
-    pointB,
-    pointC,
-    pointBIndex,
-    pointCIndex: selected.index,
-    slopePerBar: selected.slopePerBar,
-    slopePerMs: selected.slopePerMs,
-    usedFallback: selection.usedFallback
+    segments,
+    swings,
+    anyFallback
   };
 }
 
@@ -376,8 +373,8 @@ export function analyzeSymbol(params: {
     return { signal: fallbackSignal, swings: [], trendlines: [] };
   }
 
-  const primaryRay = buildPrimaryRay({ symbol, timeframe, bars });
-  if (!primaryRay) {
+  const rayChain = buildRayChain({ symbol, timeframe, bars });
+  if (!rayChain || rayChain.segments.length === 0) {
     const fallbackSignal: StrategySignal = {
       symbol,
       timeframe,
@@ -399,53 +396,34 @@ export function analyzeSymbol(params: {
     return { signal: fallbackSignal, swings: [], trendlines: [] };
   }
 
-  const { pointA, pointB, pointAIndex, pointBIndex, slopePerBar, slopePerMs, usedFallback } = primaryRay;
-  const secondaryRay = buildSecondaryRay({ symbol, timeframe, bars, pointBIndex });
-  const pointC = secondaryRay?.pointC;
-  const firstLineDirection: Trendline["direction"] = slopePerBar < 0 ? "BEARISH" : "BULLISH";
-  const secondLineDirection: Trendline["direction"] | undefined = secondaryRay
-    ? secondaryRay.slopePerBar < 0
-      ? "BEARISH"
-      : "BULLISH"
-    : undefined;
-  const swings: SwingPoint[] = pointC ? [pointA, pointB, pointC] : [pointA, pointB];
+  const { segments, swings, anyFallback } = rayChain;
+  const firstSegment = segments[0];
+  const activeSegment = segments[segments.length - 1];
+  const secondSegment = segments.length > 1 ? segments[1] : undefined;
+  const pointA = firstSegment.startPoint;
+  const pointB = firstSegment.endPoint;
+  const pointC = secondSegment?.endPoint;
   const lastBar = bars[bars.length - 1];
   const prevBar = bars[bars.length - 2] ?? lastBar;
-  const firstActionLine: Trendline = {
+  const actionLine: Trendline = {
     symbol,
     timeframe,
-    direction: firstLineDirection,
+    direction: activeSegment.direction,
     kind: "ACTION",
-    startTime: pointA.timestamp,
-    endTime: pointB.timestamp,
-    startPrice: pointA.price,
-    endPrice: pointB.price,
-    slope: slopePerMs,
+    startTime: activeSegment.startPoint.timestamp,
+    endTime: activeSegment.endPoint.timestamp,
+    startPrice: activeSegment.startPoint.price,
+    endPrice: activeSegment.endPoint.price,
+    slope: activeSegment.slopePerMs,
     score: 0,
     touches: 0,
     violations: 0
   };
-  const secondActionLine: Trendline | undefined = secondaryRay
-    ? {
-        symbol,
-        timeframe,
-        direction: secondLineDirection ?? "BULLISH",
-        kind: "ACTION",
-        startTime: secondaryRay.pointB.timestamp,
-        endTime: secondaryRay.pointC.timestamp,
-        startPrice: secondaryRay.pointB.price,
-        endPrice: secondaryRay.pointC.price,
-        slope: secondaryRay.slopePerMs,
-        score: 0,
-        touches: 0,
-        violations: 0
-      }
-    : undefined;
-  const actionLine = secondActionLine ?? firstActionLine;
-  const activeStartIndex = secondaryRay?.pointBIndex ?? pointAIndex;
-  const activeSlopePerMs = secondaryRay?.slopePerMs ?? slopePerMs;
-  const activeSlopePerBar = secondaryRay?.slopePerBar ?? slopePerBar;
-  const activeStartPrice = secondaryRay?.pointB.price ?? pointA.price;
+  const activeStartIndex = activeSegment.startIndex;
+  const activeSlopePerMs = activeSegment.slopePerMs;
+  const activeSlopePerBar = activeSegment.slopePerBar;
+  const activeStartPrice = activeSegment.startPoint.price;
+  const activeRayLabel = `${actionLine.startTime.slice(0, 10)}→${actionLine.endTime.slice(0, 10)}`;
 
   const actionLinePrice = linePriceAt(actionLine, lastBar.timestamp);
   const actionPrevPrice = linePriceAt(actionLine, prevBar.timestamp);
@@ -522,23 +500,18 @@ export function analyzeSymbol(params: {
 
   const explanation = [
     `Point A anchored at timeframe low (${pointA.timestamp.slice(0, 10)}) price ${pointA.price.toFixed(2)}.`,
-    `Point B chosen at ${pointB.timestamp.slice(0, 10)} low ${pointB.price.toFixed(2)} via minimum rise/run (${slopePerBar.toFixed(6)} per bar).`,
+    `Point B chosen at ${pointB.timestamp.slice(0, 10)} low ${pointB.price.toFixed(2)} via minimum rise/run (${firstSegment.slopePerBar.toFixed(6)} per bar).`,
     pointC
-      ? `Point C chosen from Point B at ${pointC.timestamp.slice(0, 10)} low ${pointC.price.toFixed(2)} via minimum rise/run (${(secondaryRay?.slopePerBar ?? 0).toFixed(6)} per bar).`
+      ? `Point C chosen from Point B at ${pointC.timestamp.slice(0, 10)} low ${pointC.price.toFixed(2)} via minimum rise/run (${(secondSegment?.slopePerBar ?? 0).toFixed(6)} per bar).`
       : "Point C unavailable because there are not enough forward bars after Point B.",
-    usedFallback
-      ? "No valid slope candidate found; fallback selected highest reachable low as Point B."
-      : slopePerBar < 0
+    firstSegment.slopePerBar < 0
         ? "Selected rise/run is negative, so the A→B action line is bearish (red)."
         : "Selected rise/run is non-negative, so the A→B action line is bullish (green).",
-    secondaryRay?.usedFallback
-      ? "No valid slope candidate found from Point B; fallback selected highest reachable low as Point C."
-      : secondaryRay
-        ? secondaryRay.slopePerBar < 0
-          ? "Selected rise/run from B→C is negative, so the B→C action line is bearish (red)."
-          : "Selected rise/run from B→C is non-negative, so the B→C action line is bullish (green)."
-        : "No secondary B→C ray computed.",
-    `${secondaryRay ? "B→C" : "A→B"} ray slope projects active Action Line at ${actionLinePrice.toFixed(2)} (current close ${lastBar.close.toFixed(2)}).`,
+    anyFallback
+      ? "At least one chained step required fallback because no valid slope candidate was found."
+      : "Each chained step used the minimum rise/run selector without fallback.",
+    `Built ${segments.length} chained rays toward present; active ray ${activeRayLabel} uses rise/run ${activeSlopePerBar.toFixed(6)} per bar.`,
+    `Active ray projects Action Line at ${actionLinePrice.toFixed(2)} (current close ${lastBar.close.toFixed(2)}).`,
     `Safety line derived from Action Line using ${(clampedSafetyLossBuffer * 100).toFixed(2)}% buffer at ${safetyLinePrice.toFixed(2)}.`,
     `Safety-loss line from close with same buffer at ${safetyLossLinePrice.toFixed(2)}.`,
     `Touches ${touches}, violations ${violations}, breakout ${breakoutStrength.toFixed(1)}, volume ${volumeConfirmation.toFixed(1)}.`
@@ -548,9 +521,9 @@ export function analyzeSymbol(params: {
     const crossedUp = prevBar.close <= actionPrevPrice && lastBar.close > actionLinePrice;
     const crossedDown = prevBar.close >= actionPrevPrice && lastBar.close < actionLinePrice;
     if (crossedUp) {
-      explanation.push(`Latest candle crossed above the ${secondaryRay ? "B→C" : "A→B"} ray.`);
+      explanation.push(`Latest candle crossed above the active ray (${activeRayLabel}).`);
     } else if (crossedDown) {
-      explanation.push(`Latest candle crossed below the ${secondaryRay ? "B→C" : "A→B"} ray.`);
+      explanation.push(`Latest candle crossed below the active ray (${activeRayLabel}).`);
     }
   }
 
@@ -568,29 +541,23 @@ export function analyzeSymbol(params: {
     breakdown
   };
 
-  const trendlinesForInspection: Trendline[] = secondaryRay
-    ? [
-        {
-          ...firstActionLine,
-          score: clamp(45 + Math.min(45, Math.abs(slopePerBar) * 4000), 0, 100),
-          touches: 0,
-          violations: 0
-        },
-        {
-          ...actionLine,
-          score: trendlineQuality,
-          touches,
-          violations
-        }
-      ]
-    : [
-        {
-          ...actionLine,
-          score: trendlineQuality,
-          touches,
-          violations
-        }
-      ];
+  const trendlinesForInspection: Trendline[] = segments.map((segment, index) => {
+    const isActive = index === segments.length - 1;
+    return {
+      symbol,
+      timeframe,
+      direction: segment.direction,
+      kind: "ACTION",
+      startTime: segment.startPoint.timestamp,
+      endTime: segment.endPoint.timestamp,
+      startPrice: segment.startPoint.price,
+      endPrice: segment.endPoint.price,
+      slope: segment.slopePerMs,
+      score: isActive ? trendlineQuality : clamp(45 + Math.min(45, Math.abs(segment.slopePerBar) * 4000), 0, 100),
+      touches: isActive ? touches : 0,
+      violations: isActive ? violations : 0
+    };
+  });
 
   return {
     signal,
