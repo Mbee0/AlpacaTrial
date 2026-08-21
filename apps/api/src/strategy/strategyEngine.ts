@@ -41,12 +41,20 @@ function buildPrimaryRay(params: { symbol: string; timeframe: Timeframe; bars: O
     return null;
   }
 
-  const firstBar = bars[0];
+  let pointAIndex = 0;
+  // Keep at least one forward bar so A->B is a forward ray.
+  for (let index = 1; index < bars.length - 1; index += 1) {
+    if (bars[index].low < bars[pointAIndex].low) {
+      pointAIndex = index;
+    }
+  }
+
+  const pointABar = bars[pointAIndex];
   const pointA: SwingPoint = {
     symbol,
     timeframe,
-    timestamp: firstBar.timestamp,
-    price: firstBar.low,
+    timestamp: pointABar.timestamp,
+    price: pointABar.low,
     kind: "LOW",
     strength: 0
   };
@@ -56,9 +64,9 @@ function buildPrimaryRay(params: { symbol: string; timeframe: Timeframe; bars: O
   }
   let selected: RayEndpoint | null = null;
   let usedFallback = false;
-  for (let index = 1; index < bars.length; index += 1) {
+  for (let index = pointAIndex + 1; index < bars.length; index += 1) {
     const bar = bars[index];
-    const runBars = index;
+    const runBars = index - pointAIndex;
     if (runBars <= 0) {
       continue;
     }
@@ -92,9 +100,9 @@ function buildPrimaryRay(params: { symbol: string; timeframe: Timeframe; bars: O
 
   if (!selected) {
     usedFallback = true;
-    let fallbackIndex = 1;
-    let fallbackPrice = bars[1].low;
-    for (let index = 2; index < bars.length; index += 1) {
+    let fallbackIndex = pointAIndex + 1;
+    let fallbackPrice = bars[fallbackIndex].low;
+    for (let index = pointAIndex + 2; index < bars.length; index += 1) {
       if (bars[index].low > fallbackPrice) {
         fallbackPrice = bars[index].low;
         fallbackIndex = index;
@@ -110,7 +118,7 @@ function buildPrimaryRay(params: { symbol: string; timeframe: Timeframe; bars: O
       index: fallbackIndex,
       timestamp: bars[fallbackIndex].timestamp,
       price: bars[fallbackIndex].low,
-      slopePerBar: (bars[fallbackIndex].low - pointA.price) / Math.max(1, fallbackIndex),
+      slopePerBar: (bars[fallbackIndex].low - pointA.price) / Math.max(1, fallbackIndex - pointAIndex),
       slopePerMs: Number.isFinite(fallbackSlopePerMs) ? fallbackSlopePerMs : 0
     };
   }
@@ -127,7 +135,7 @@ function buildPrimaryRay(params: { symbol: string; timeframe: Timeframe; bars: O
   return {
     pointA,
     pointB,
-    pointAIndex: 0,
+    pointAIndex,
     slopePerBar: selected.slopePerBar,
     slopePerMs: selected.slopePerMs,
     usedFallback
@@ -422,7 +430,7 @@ export function analyzeSymbol(params: {
   );
 
   const explanation = [
-    `Point A anchored at first bar (${pointA.timestamp.slice(0, 10)}) low ${pointA.price.toFixed(2)}.`,
+    `Point A anchored at timeframe low (${pointA.timestamp.slice(0, 10)}) price ${pointA.price.toFixed(2)}.`,
     `Point B chosen at ${pointB.timestamp.slice(0, 10)} low ${pointB.price.toFixed(2)} via minimum rise/run (${slopePerBar.toFixed(6)} per bar).`,
     usedFallback
       ? "No valid slope candidate found; fallback selected highest reachable low as Point B."
