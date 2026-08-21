@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { OhlcvBar, ScannerRow, Timeframe } from "@trader/shared";
+import {
+  DEFAULT_STRATEGY_SETTINGS,
+  OhlcvBar,
+  PriceAdjustment,
+  ScannerRow,
+  StrategySettings,
+  Timeframe
+} from "@trader/shared";
 import {
   fetchAnalysisStatus,
   fetchBacktest,
@@ -13,6 +20,7 @@ import { HelpPage } from "./components/HelpPage";
 import { PortfolioPage } from "./components/PortfolioPage";
 import { ScannerTable, type ScannerTab } from "./components/ScannerTable";
 import { SignalExplanation } from "./components/SignalExplanation";
+import { StrategySettingsPanel } from "./components/StrategySettingsPanel";
 import { SymbolChart } from "./components/SymbolChart";
 import { BacktestResponse, PortfolioSummaryResponse, SymbolAnalysisResponse } from "./types";
 import "./styles.css";
@@ -20,13 +28,18 @@ import "./styles.css";
 const timeframeOptions: Timeframe[] = ["1Day", "4Hour", "1Hour", "15Min"];
 type ViewMode = "dashboard" | "portfolio" | "help";
 type DragMode = "vertical" | "left-horizontal" | "right-horizontal" | null;
-type ChartRangePreset = "1H" | "1D" | "1M" | "6M" | "1Y" | "5Y" | "YTD";
+type ChartRangePreset = "1H" | "1D" | "1M" | "6M" | "1Y" | "5Y" | "10Y" | "YTD" | "ALL";
 type ChartAggregation = "none" | "5D" | "2W" | "1M";
 const APP_STATE_KEY = "trader-ui-state-v1";
 const SPLITTER_PX = 4;
 const MIN_BOTTOM_PANE_PX = 150;
 const MAX_BOTTOM_PANE_PX = 460;
-const chartRangePresets: ChartRangePreset[] = ["1H", "1D", "1M", "6M", "1Y", "5Y", "YTD"];
+const chartRangePresets: ChartRangePreset[] = ["1H", "1D", "1M", "6M", "1Y", "5Y", "10Y", "YTD", "ALL"];
+const priceAdjustmentOptions: Array<{ value: PriceAdjustment; label: string }> = [
+  { value: "raw", label: "Raw" },
+  { value: "split", label: "Split Adj" },
+  { value: "all", label: "All Adj" }
+];
 
 function resolveChartBarsTimeframe(baseTimeframe: Timeframe, preset: ChartRangePreset): Timeframe {
   if (preset === "1H" || preset === "1D") {
@@ -45,15 +58,21 @@ function resolveChartBarsTimeframe(baseTimeframe: Timeframe, preset: ChartRangeP
 }
 
 function resolveChartAggregation(preset: ChartRangePreset): ChartAggregation {
-  if (preset === "5Y") {
-    return "5D";
-  }
+  // Keep bar spacing exact for anchor geometry calculations and A/B ray visualization.
+  // We rely on coarser server-side timeframes for long ranges instead of post-fetch aggregation.
   return "none";
 }
 
 function buildRangeForPreset(preset: ChartRangePreset) {
   const end = new Date();
   const start = new Date(end);
+
+  if (preset === "ALL") {
+    return {
+      start: new Date("1900-01-01T00:00:00.000Z").toISOString(),
+      end: end.toISOString()
+    };
+  }
 
   if (preset === "YTD") {
     const ytdStart = new Date(Date.UTC(end.getUTCFullYear(), 0, 1, 0, 0, 0, 0));
@@ -72,6 +91,8 @@ function buildRangeForPreset(preset: ChartRangePreset) {
     start.setFullYear(start.getFullYear() - 1);
   } else if (preset === "5Y") {
     start.setFullYear(start.getFullYear() - 5);
+  } else if (preset === "10Y") {
+    start.setFullYear(start.getFullYear() - 10);
   }
 
   return {
@@ -190,6 +211,10 @@ function buildHistoryCoverageNote(
     return `History loaded from ${first.timestamp.slice(0, 10)} to ${last.timestamp.slice(0, 10)}.`;
   }
 
+  if (preset === "ALL") {
+    return `Showing all available history from data source (${first.timestamp.slice(0, 10)} to ${last.timestamp.slice(0, 10)}).`;
+  }
+
   return `Requested ${preset}, but available history starts at ${first.timestamp.slice(0, 10)} for this symbol/data feed.`;
 }
 
@@ -199,6 +224,44 @@ function formatFixed(value: unknown, digits: number): string {
     return "—";
   }
   return numberValue.toFixed(digits);
+}
+
+function normalizeStrategySettings(input?: Partial<StrategySettings>): StrategySettings {
+  const valueOr = (value: unknown, fallback: number) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  return {
+    weights: {
+      trendStrength: valueOr(input?.weights?.trendStrength, DEFAULT_STRATEGY_SETTINGS.weights.trendStrength),
+      trendlineQuality: valueOr(input?.weights?.trendlineQuality, DEFAULT_STRATEGY_SETTINGS.weights.trendlineQuality),
+      breakoutStrength: valueOr(input?.weights?.breakoutStrength, DEFAULT_STRATEGY_SETTINGS.weights.breakoutStrength),
+      volumeConfirmation: valueOr(
+        input?.weights?.volumeConfirmation,
+        DEFAULT_STRATEGY_SETTINGS.weights.volumeConfirmation
+      ),
+      multiTimeframeAlignment: valueOr(
+        input?.weights?.multiTimeframeAlignment,
+        DEFAULT_STRATEGY_SETTINGS.weights.multiTimeframeAlignment
+      ),
+      volatilitySuitability: valueOr(
+        input?.weights?.volatilitySuitability,
+        DEFAULT_STRATEGY_SETTINGS.weights.volatilitySuitability
+      ),
+      riskReward: valueOr(input?.weights?.riskReward, DEFAULT_STRATEGY_SETTINGS.weights.riskReward)
+    },
+    thresholds: {
+      longScore: valueOr(input?.thresholds?.longScore, DEFAULT_STRATEGY_SETTINGS.thresholds.longScore),
+      shortScore: valueOr(input?.thresholds?.shortScore, DEFAULT_STRATEGY_SETTINGS.thresholds.shortScore),
+      breakoutScore: valueOr(input?.thresholds?.breakoutScore, DEFAULT_STRATEGY_SETTINGS.thresholds.breakoutScore),
+      watchScore: valueOr(input?.thresholds?.watchScore, DEFAULT_STRATEGY_SETTINGS.thresholds.watchScore),
+      watchConfidencePenalty: valueOr(
+        input?.thresholds?.watchConfidencePenalty,
+        DEFAULT_STRATEGY_SETTINGS.thresholds.watchConfidencePenalty
+      )
+    }
+  };
 }
 
 function scannerPlaceholderRow(symbol: string, timeframe: Timeframe): ScannerRow {
@@ -295,12 +358,15 @@ export default function App() {
   const [testSymbols, setTestSymbols] = useState<string[]>([]);
   const [savedSymbols, setSavedSymbols] = useState<string[]>([]);
   const [safetyLossBufferPct, setSafetyLossBufferPct] = useState(1);
+  const [strategySettings, setStrategySettings] = useState<StrategySettings>(DEFAULT_STRATEGY_SETTINGS);
+  const [strategySettingsDraft, setStrategySettingsDraft] = useState<StrategySettings>(DEFAULT_STRATEGY_SETTINGS);
+  const [chartPriceAdjustment, setChartPriceAdjustment] = useState<PriceAdjustment>("split");
   const [marketScannerRows, setMarketScannerRows] = useState<ScannerRow[]>([]);
   const [testScannerRows, setTestScannerRows] = useState<ScannerRow[]>([]);
   const [savedScannerRows, setSavedScannerRows] = useState<ScannerRow[]>([]);
   const [selectedSymbol, setSelectedSymbol] = useState<string>();
   const [chartBars, setChartBars] = useState<OhlcvBar[]>();
-  const [chartRangePreset, setChartRangePreset] = useState<ChartRangePreset>("1M");
+  const [chartRangePreset, setChartRangePreset] = useState<ChartRangePreset>("ALL");
   const [analysis, setAnalysis] = useState<SymbolAnalysisResponse>();
   const [backtest, setBacktest] = useState<BacktestResponse>();
   const [portfolio, setPortfolio] = useState<PortfolioSummaryResponse>();
@@ -374,6 +440,42 @@ export default function App() {
     () => chartIntervalLabel(chartBarsTimeframe, chartAggregation),
     [chartBarsTimeframe, chartAggregation]
   );
+  const actionLineForDebug = useMemo(() => {
+    const actionLines = analysis?.trendlines.filter((line) => line.kind === "ACTION") ?? [];
+    if (actionLines.length === 0) {
+      return undefined;
+    }
+    return [...actionLines].sort((a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime())[0];
+  }, [analysis]);
+  const chartDebugRows = useMemo(() => {
+    const bars = chartBars ?? [];
+    if (bars.length <= 12) {
+      return bars;
+    }
+    return [...bars.slice(0, 6), ...bars.slice(-6)];
+  }, [chartBars]);
+  const actionLineDebug = useMemo(() => {
+    if (!actionLineForDebug || !chartBars || chartBars.length === 0) {
+      return undefined;
+    }
+    const pointAIndex = chartBars.findIndex((bar) => bar.timestamp === actionLineForDebug.startTime);
+    const pointBIndex = chartBars.findIndex((bar) => bar.timestamp === actionLineForDebug.endTime);
+    const runBars = pointAIndex >= 0 && pointBIndex >= 0 ? pointBIndex - pointAIndex : undefined;
+    const rise = actionLineForDebug.endPrice - actionLineForDebug.startPrice;
+    const risePerBar = runBars && runBars > 0 ? rise / runBars : undefined;
+    return {
+      pointAIndex,
+      pointBIndex,
+      runBars,
+      rise,
+      risePerBar
+    };
+  }, [actionLineForDebug, chartBars]);
+  const strategySettingsKey = useMemo(() => JSON.stringify(strategySettings), [strategySettings]);
+  const hasPendingStrategyChanges = useMemo(
+    () => JSON.stringify(strategySettingsDraft) !== strategySettingsKey,
+    [strategySettingsDraft, strategySettingsKey]
+  );
   const isSelectedSymbolSaved = Boolean(selectedSymbol && savedSymbols.includes(selectedSymbol));
 
   useEffect(() => {
@@ -387,6 +489,8 @@ export default function App() {
         timeframe?: Timeframe;
         selectedSymbol?: string;
         safetyLossBufferPct?: number;
+        strategySettings?: StrategySettings;
+        chartPriceAdjustment?: PriceAdjustment;
         marketScannerRows?: ScannerRow[];
         scannerActiveTab?: ScannerTab;
         testSymbols?: string[];
@@ -404,6 +508,18 @@ export default function App() {
       }
       if (typeof parsed.safetyLossBufferPct === "number" && Number.isFinite(parsed.safetyLossBufferPct)) {
         setSafetyLossBufferPct(parsed.safetyLossBufferPct);
+      }
+      if (parsed.strategySettings) {
+        const normalized = normalizeStrategySettings(parsed.strategySettings);
+        setStrategySettings(normalized);
+        setStrategySettingsDraft(normalized);
+      }
+      if (
+        parsed.chartPriceAdjustment === "raw" ||
+        parsed.chartPriceAdjustment === "split" ||
+        parsed.chartPriceAdjustment === "all"
+      ) {
+        setChartPriceAdjustment(parsed.chartPriceAdjustment);
       }
       if (parsed.scannerActiveTab === "market" || parsed.scannerActiveTab === "test" || parsed.scannerActiveTab === "saved") {
         setScannerActiveTab(parsed.scannerActiveTab);
@@ -437,6 +553,8 @@ export default function App() {
       timeframe,
       selectedSymbol,
       safetyLossBufferPct,
+      strategySettings,
+      chartPriceAdjustment,
       scannerActiveTab,
       testSymbols: testSymbols.slice(0, 80),
       savedSymbols: savedSymbols.slice(0, 80),
@@ -450,6 +568,8 @@ export default function App() {
     timeframe,
     selectedSymbol,
     safetyLossBufferPct,
+    strategySettings,
+    chartPriceAdjustment,
     scannerActiveTab,
     testSymbols,
     savedSymbols,
@@ -462,7 +582,7 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     const loadScanners = async () => {
-      const cacheKey = timeframe;
+      const cacheKey = `${timeframe}:${strategySettingsKey}`;
       const cachedMarketRows = marketScannerCacheRef.current.get(cacheKey);
       if (cachedMarketRows && cachedMarketRows.length > 0 && refreshCounter === 0) {
         setMarketScannerRows(cachedMarketRows);
@@ -471,7 +591,7 @@ export default function App() {
 
       setMarketScannerLoading(true);
       try {
-        const scanner = await fetchScanner(timeframe);
+        const scanner = await fetchScanner(timeframe, { strategySettings });
         if (cancelled) {
           return;
         }
@@ -504,7 +624,8 @@ export default function App() {
         try {
           const scanner = await fetchScanner(timeframe, {
             symbols,
-            limit: Math.max(symbols.length, 20)
+            limit: Math.max(symbols.length, 20),
+            strategySettings
           });
           if (cancelled) {
             return;
@@ -534,7 +655,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [timeframe, refreshCounter, testSymbols, savedSymbols, scannerActiveTab]);
+  }, [timeframe, refreshCounter, testSymbols, savedSymbols, scannerActiveTab, strategySettings, strategySettingsKey]);
 
   useEffect(() => {
     if (!selectedSymbol) {
@@ -545,10 +666,11 @@ export default function App() {
       const requestId = barsRequestIdRef.current + 1;
       barsRequestIdRef.current = requestId;
       const bufferPct = Math.max(0.1, safetyLossBufferPct) / 100;
-      const analysisKey = `${selectedSymbol}:${timeframe}:${bufferPct.toFixed(4)}`;
+      const analysisTimeframe = chartBarsTimeframe;
+      const analysisKey = `${selectedSymbol}:${analysisTimeframe}:${chartRangePreset}:${bufferPct.toFixed(4)}:${chartPriceAdjustment}:${strategySettingsKey}`;
       const range = buildRangeForPreset(chartRangePreset);
-      const chartBarsCacheKey = `${selectedSymbol}:${chartBarsTimeframe}:${chartRangePreset}`;
-      const symbolTimeframeKey = `${selectedSymbol}:${timeframe}`;
+      const chartBarsCacheKey = `${selectedSymbol}:${chartBarsTimeframe}:${chartRangePreset}:${chartPriceAdjustment}`;
+      const symbolTimeframeKey = `${selectedSymbol}:${timeframe}:${chartPriceAdjustment}`;
       const cachedBars = chartBarsCacheRef.current.get(chartBarsCacheKey);
       const cachedAnalysis = analysisCacheRef.current.get(analysisKey);
       const cachedBacktest = backtestCacheRef.current.get(symbolTimeframeKey);
@@ -566,7 +688,7 @@ export default function App() {
       setChartStatusMessage(`Fetching candlestick history (${chartIntervalLabel(chartBarsTimeframe, chartAggregation)})...`);
       setChartStatusProgress(chartProgressFromStatus("Fetching candlestick history..."));
       try {
-        const marketBarsResponse = await fetchMarketBars(selectedSymbol, chartBarsTimeframe, range);
+        const marketBarsResponse = await fetchMarketBars(selectedSymbol, chartBarsTimeframe, range, chartPriceAdjustment);
         if (requestId !== barsRequestIdRef.current) {
           return;
         }
@@ -596,7 +718,15 @@ export default function App() {
     };
 
     loadChartBars();
-  }, [selectedSymbol, timeframe, chartRangePreset, chartBarsTimeframe, chartAggregation]);
+  }, [
+    selectedSymbol,
+    timeframe,
+    chartRangePreset,
+    chartBarsTimeframe,
+    chartAggregation,
+    chartPriceAdjustment,
+    strategySettingsKey
+  ]);
 
   const runAnalysis = async () => {
     if (!selectedSymbol) {
@@ -610,8 +740,10 @@ export default function App() {
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const bufferPct = Math.max(0.1, safetyLossBufferPct) / 100;
-    const analysisKey = `${selectedSymbol}:${timeframe}:${bufferPct.toFixed(4)}`;
-    const symbolTimeframeKey = `${selectedSymbol}:${timeframe}`;
+    const analysisRange = buildRangeForPreset(chartRangePreset);
+    const analysisTimeframe = chartBarsTimeframe;
+    const analysisKey = `${selectedSymbol}:${analysisTimeframe}:${chartRangePreset}:${bufferPct.toFixed(4)}:${chartPriceAdjustment}:${strategySettingsKey}`;
+    const symbolTimeframeKey = `${selectedSymbol}:${timeframe}:${chartPriceAdjustment}`;
     const cachedAnalysis = analysisCacheRef.current.get(analysisKey);
     const cachedBacktest = backtestCacheRef.current.get(symbolTimeframeKey);
     if (cachedAnalysis) {
@@ -647,7 +779,15 @@ export default function App() {
     void pollStatus();
 
     try {
-      const analysisResponse = await fetchSymbolAnalysisWithRequestId(selectedSymbol, timeframe, bufferPct, statusRequestId);
+      const analysisResponse = await fetchSymbolAnalysisWithRequestId(
+        selectedSymbol,
+        analysisTimeframe,
+        bufferPct,
+        statusRequestId,
+        chartPriceAdjustment,
+        strategySettings,
+        analysisRange
+      );
       if (requestId !== detailRequestIdRef.current) {
         clearStatusPolling();
         return;
@@ -659,7 +799,7 @@ export default function App() {
       setChartStatusMessage("Chart analysis complete.");
       setChartStatusProgress(100);
 
-      void fetchBacktest(selectedSymbol, timeframe)
+      void fetchBacktest(selectedSymbol, timeframe, chartPriceAdjustment)
         .then((backtestResponse) => {
           if (requestId !== detailRequestIdRef.current) {
             return;
@@ -727,6 +867,19 @@ export default function App() {
 
   const handleSearchSubmit = () => {
     handleSelectSymbol(searchSymbol);
+  };
+
+  const handleApplyStrategySettings = () => {
+    const normalized = normalizeStrategySettings(strategySettingsDraft);
+    setStrategySettings(normalized);
+    setStrategySettingsDraft(normalized);
+    marketScannerCacheRef.current.clear();
+    setAnalysis(undefined);
+    setRefreshCounter((value) => value + 1);
+  };
+
+  const handleResetStrategySettings = () => {
+    setStrategySettingsDraft(DEFAULT_STRATEGY_SETTINGS);
   };
 
   const handleAddTestSymbol = () => {
@@ -893,7 +1046,16 @@ export default function App() {
                 >
                   <span className="splitter-handle" aria-hidden="true" />
                 </div>
-                <SignalExplanation signal={selectedSignal} loading={detailsLoading && !selectedSignal} />
+                <div className="left-bottom-stack">
+                  <StrategySettingsPanel
+                    draft={strategySettingsDraft}
+                    hasPendingChanges={hasPendingStrategyChanges}
+                    onDraftChange={setStrategySettingsDraft}
+                    onApply={handleApplyStrategySettings}
+                    onReset={handleResetStrategySettings}
+                  />
+                  <SignalExplanation signal={selectedSignal} loading={detailsLoading && !selectedSignal} />
+                </div>
               </div>
               <div
                 className={`splitter splitter-vertical ${dragMode === "vertical" ? "active" : ""}`}
@@ -914,7 +1076,7 @@ export default function App() {
                     <h2 className="title-with-hint">
                       {selectedSymbol ? `${selectedSymbol} Chart Inspection` : "Chart Inspection"}
                       <span className="title-hint">
-                        Candles, volume, trend rays, Action/Safety/Safety-Loss lines, and backtest trade markers.
+                        Candles, volume, trend rays, and Action/Safety/Safety-Loss lines.
                       </span>
                     </h2>
                     <div className="chart-panel-actions">
@@ -961,7 +1123,77 @@ export default function App() {
                     ))}
                     <span className="chart-range-interval">Bar interval: {chartInterval}</span>
                   </div>
+                  <div className="chart-range-row" role="tablist" aria-label="Price adjustment mode">
+                    <span className="chart-range-label">Prices</span>
+                    {priceAdjustmentOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        role="tab"
+                        aria-selected={chartPriceAdjustment === option.value}
+                        className={`chart-range-chip ${chartPriceAdjustment === option.value ? "active" : ""}`}
+                        onClick={() => setChartPriceAdjustment(option.value)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
                   {chartHistoryCoverageNote && <div className="chart-coverage-note">{chartHistoryCoverageNote}</div>}
+                  <details className="chart-debug-panel">
+                    <summary>Chart data debug</summary>
+                    <p className="chart-debug-note">
+                      Bars listed here are the in-memory chart bars currently loaded from <code>/api/market/bars</code>{" "}
+                      (that API may serve from DB cache or fresh source fetch).
+                    </p>
+                    <div className="chart-debug-meta">
+                      <span>Raw bars loaded: {chartBars?.length ?? 0}</span>
+                      <span>Bars displayed: {displayChartBars?.length ?? 0}</span>
+                      <span>Analysis timeframe: {chartBarsTimeframe}</span>
+                    </div>
+                    {actionLineForDebug && (
+                      <div className="chart-debug-meta">
+                        <span>
+                          Line start: {actionLineForDebug.startTime.slice(0, 10)} @{" "}
+                          {formatFixed(actionLineForDebug.startPrice, 4)}
+                        </span>
+                        <span>
+                          Line end: {actionLineForDebug.endTime.slice(0, 10)} @{" "}
+                          {formatFixed(actionLineForDebug.endPrice, 4)}
+                        </span>
+                        <span>Run (bars): {actionLineDebug?.runBars ?? "—"}</span>
+                        <span>Rise: {formatFixed(actionLineDebug?.rise, 6)}</span>
+                        <span>Rise/Run: {formatFixed(actionLineDebug?.risePerBar, 6)}</span>
+                      </div>
+                    )}
+                    {chartDebugRows.length > 0 && (
+                      <div className="chart-debug-table-wrap">
+                        <table className="chart-debug-table">
+                          <thead>
+                            <tr>
+                              <th>Timestamp</th>
+                              <th>Open</th>
+                              <th>High</th>
+                              <th>Low</th>
+                              <th>Close</th>
+                              <th>Volume</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {chartDebugRows.map((bar, index) => (
+                              <tr key={`${bar.timestamp}-${index}`}>
+                                <td>{bar.timestamp}</td>
+                                <td>{formatFixed(bar.open, 4)}</td>
+                                <td>{formatFixed(bar.high, 4)}</td>
+                                <td>{formatFixed(bar.low, 4)}</td>
+                                <td>{formatFixed(bar.close, 4)}</td>
+                                <td>{formatFixed(bar.volume, 0)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </details>
                   {(chartBarsLoading || detailsLoading) && (
                     <div className="chart-inline-status" aria-live="polite">
                       <div
@@ -1006,7 +1238,7 @@ export default function App() {
                         <p className="muted">Select a symbol to load chart history.</p>
                       </div>
                     ) : (
-                      <SymbolChart analysis={analysis} bars={displayChartBars} backtestTrades={backtest?.tradeList} />
+                      <SymbolChart analysis={analysis} bars={displayChartBars} />
                     )}
                   </div>
                 </div>

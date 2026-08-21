@@ -215,6 +215,14 @@ button:hover {
   min-width: 0;
 }
 
+.left-bottom-stack {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(170px, auto) minmax(0, 1fr);
+  gap: var(--ui-gap);
+  overflow: hidden;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -530,6 +538,36 @@ ul {
   flex: 1;
 }
 
+.strategy-settings-panel {
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.strategy-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem 0.5rem;
+}
+
+.strategy-grid label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.strategy-grid input {
+  min-width: 0;
+}
+
+.strategy-actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .signal-panel {
   min-height: 0;
   overflow: auto;
@@ -596,6 +634,68 @@ ul {
   margin-bottom: 0.4rem;
   font-size: 0.72rem;
   color: #aecdff;
+}
+
+.chart-debug-panel {
+  margin-bottom: 0.45rem;
+  border: 1px solid rgba(129, 156, 200, 0.32);
+  border-radius: 10px;
+  background: rgba(36, 52, 76, 0.5);
+  padding: 0.32rem 0.45rem;
+}
+
+.chart-debug-panel summary {
+  cursor: pointer;
+  font-size: 0.76rem;
+  color: #d5e4ff;
+  user-select: none;
+}
+
+.chart-debug-note {
+  margin: 0.4rem 0 0.45rem;
+  font-size: 0.72rem;
+  color: #b8ccef;
+}
+
+.chart-debug-note code {
+  font-size: 0.7rem;
+}
+
+.chart-debug-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.7rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.7rem;
+  color: #c4d8fb;
+}
+
+.chart-debug-table-wrap {
+  overflow: auto;
+  max-height: 200px;
+  border: 1px solid rgba(128, 154, 194, 0.28);
+  border-radius: 8px;
+}
+
+.chart-debug-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.69rem;
+}
+
+.chart-debug-table th,
+.chart-debug-table td {
+  border-bottom: 1px solid rgba(124, 148, 186, 0.2);
+  padding: 0.24rem 0.35rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.chart-debug-table th {
+  position: sticky;
+  top: 0;
+  background: #23344d;
+  color: #d8e7ff;
 }
 
 .analysis-run-button {

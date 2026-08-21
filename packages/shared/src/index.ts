@@ -1,4 +1,52 @@
 export type Timeframe = "1Day" | "4Hour" | "1Hour" | "15Min";
+export type PriceAdjustment = "raw" | "split" | "all";
+
+export interface StrategyScoreWeights {
+  trendStrength: number;
+  trendlineQuality: number;
+  breakoutStrength: number;
+  volumeConfirmation: number;
+  multiTimeframeAlignment: number;
+  volatilitySuitability: number;
+  riskReward: number;
+}
+
+export interface StrategyThresholds {
+  longScore: number;
+  shortScore: number;
+  breakoutScore: number;
+  watchScore: number;
+  watchConfidencePenalty: number;
+}
+
+export interface StrategySettings {
+  weights: StrategyScoreWeights;
+  thresholds: StrategyThresholds;
+}
+
+export interface StrategySettingsInput {
+  weights?: Partial<StrategyScoreWeights>;
+  thresholds?: Partial<StrategyThresholds>;
+}
+
+export const DEFAULT_STRATEGY_SETTINGS: StrategySettings = {
+  weights: {
+    trendStrength: 22,
+    trendlineQuality: 20,
+    breakoutStrength: 18,
+    volumeConfirmation: 10,
+    multiTimeframeAlignment: 12,
+    volatilitySuitability: 8,
+    riskReward: 10
+  },
+  thresholds: {
+    longScore: 70,
+    shortScore: 72,
+    breakoutScore: 55,
+    watchScore: 55,
+    watchConfidencePenalty: 8
+  }
+};
 
 export type TrendDirection = "BULLISH" | "BEARISH" | "SIDEWAYS";
 export type SignalType = "LONG" | "SHORT" | "WATCH" | "HOLD";

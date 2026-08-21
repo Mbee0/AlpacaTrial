@@ -5,6 +5,7 @@ import {
   ScannerResponse,
   SymbolAnalysisResponse
 } from "../types";
+import { PriceAdjustment, StrategySettings } from "@trader/shared";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api";
 
@@ -76,6 +77,7 @@ export function fetchScanner(
   options?: {
     symbols?: string[];
     limit?: number;
+    strategySettings?: StrategySettings;
   }
 ) {
   const params = new URLSearchParams({ timeframe });
@@ -85,13 +87,38 @@ export function fetchScanner(
   if (typeof options?.limit === "number" && Number.isFinite(options.limit)) {
     params.set("limit", String(Math.max(1, Math.floor(options.limit))));
   }
+  if (options?.strategySettings) {
+    params.set("strategySettings", JSON.stringify(options.strategySettings));
+  }
   return request<ScannerResponse>(`/analysis/scanner?${params.toString()}`);
 }
 
-export function fetchSymbolAnalysis(symbol: string, timeframe: string, safetyLossBufferPct: number) {
-  return request<SymbolAnalysisResponse>(
-    `/analysis/symbol/${symbol}?timeframe=${timeframe}&safetyLossBufferPct=${safetyLossBufferPct}`
-  );
+export function fetchSymbolAnalysis(
+  symbol: string,
+  timeframe: string,
+  safetyLossBufferPct: number,
+  strategySettings?: StrategySettings,
+  adjustment: PriceAdjustment = "raw",
+  range?: {
+    start?: string;
+    end?: string;
+  }
+) {
+  const params = new URLSearchParams({
+    timeframe,
+    safetyLossBufferPct: String(safetyLossBufferPct),
+    adjustment
+  });
+  if (strategySettings) {
+    params.set("strategySettings", JSON.stringify(strategySettings));
+  }
+  if (range?.start) {
+    params.set("start", range.start);
+  }
+  if (range?.end) {
+    params.set("end", range.end);
+  }
+  return request<SymbolAnalysisResponse>(`/analysis/symbol/${symbol}?${params.toString()}`);
 }
 
 export interface AnalysisStatusResponse {
@@ -105,11 +132,30 @@ export function fetchSymbolAnalysisWithRequestId(
   symbol: string,
   timeframe: string,
   safetyLossBufferPct: number,
-  requestId: string
+  requestId: string,
+  adjustment: PriceAdjustment = "raw",
+  strategySettings?: StrategySettings,
+  range?: {
+    start?: string;
+    end?: string;
+  }
 ) {
-  return request<SymbolAnalysisResponse>(
-    `/analysis/symbol/${symbol}?timeframe=${timeframe}&safetyLossBufferPct=${safetyLossBufferPct}&requestId=${encodeURIComponent(requestId)}`
-  );
+  const params = new URLSearchParams({
+    timeframe,
+    safetyLossBufferPct: String(safetyLossBufferPct),
+    requestId,
+    adjustment
+  });
+  if (strategySettings) {
+    params.set("strategySettings", JSON.stringify(strategySettings));
+  }
+  if (range?.start) {
+    params.set("start", range.start);
+  }
+  if (range?.end) {
+    params.set("end", range.end);
+  }
+  return request<SymbolAnalysisResponse>(`/analysis/symbol/${symbol}?${params.toString()}`);
 }
 
 export function fetchAnalysisStatus(requestId: string) {
@@ -122,11 +168,13 @@ export function fetchMarketBars(
   range?: {
     start?: string;
     end?: string;
-  }
+  },
+  adjustment: PriceAdjustment = "raw"
 ) {
   const params = new URLSearchParams({
     symbol,
-    timeframe
+    timeframe,
+    adjustment
   });
   if (range?.start) {
     params.set("start", range.start);
@@ -148,9 +196,9 @@ export function fetchMarketBars(
   });
 }
 
-export function fetchBacktest(symbol: string, timeframe: string) {
+export function fetchBacktest(symbol: string, timeframe: string, adjustment: PriceAdjustment = "raw") {
   return request<BacktestResponse>(
-    `/backtest/run?symbol=${symbol}&timeframe=${timeframe}&startingBalance=10000&riskPct=0.01`
+    `/backtest/run?symbol=${symbol}&timeframe=${timeframe}&startingBalance=10000&riskPct=0.01&adjustment=${adjustment}`
   );
 }
 

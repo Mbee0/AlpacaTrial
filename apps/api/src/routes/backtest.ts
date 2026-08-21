@@ -10,6 +10,7 @@ const backtestSchema = z.object({
   timeframe: z.string().default("1Hour"),
   start: z.string().optional(),
   end: z.string().optional(),
+  adjustment: z.enum(["raw", "split", "all"]).default("raw"),
   startingBalance: z.coerce.number().default(10000),
   riskPct: z.coerce.number().default(0.01),
   slippagePct: z.coerce.number().default(0.0005),
@@ -28,6 +29,7 @@ export async function registerBacktestRoutes(app: FastifyInstance) {
       timeframe,
       start,
       end,
+      adjustment: query.adjustment,
       forceRefresh: false
     });
 
